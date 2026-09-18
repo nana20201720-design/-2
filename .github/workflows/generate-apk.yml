@@ -17,10 +17,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
 
       - name: Install Dependencies
-        run: npm install --legacy-peer-deps
+        run: |
+          npm install --legacy-peer-deps
+          # هذا السطر هو الحل الجذري لمشكلة Tailwind التي ظهرت في الصورة
+          npm install @tailwindcss/oxide-linux-x64-gnu --save-dev
 
       - name: Build Web Application
         run: npm run build
