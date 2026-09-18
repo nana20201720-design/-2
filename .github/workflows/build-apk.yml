@@ -18,10 +18,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci || npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Build Web Application
         run: npm run build
@@ -36,16 +35,6 @@ jobs:
         run: |
           npx cap sync android
 
-      - name: Cache Gradle Packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
       - name: Grant Execute Permission to Gradle Wrapper
         run: chmod +x android/gradlew
 
@@ -57,6 +46,6 @@ jobs:
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Mini-Battle-Arena-Debug-APK
+          name: Mini-Battle-Arena-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
