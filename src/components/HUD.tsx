@@ -269,39 +269,39 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* TOP BAR: Exact Mini Militia Classic Layout */}
+      {/* TOP BAR: Exact Mini Militia Classic Layout matching reference screenshot */}
       <div className="flex items-start justify-between w-full">
-        {/* TOP LEFT: Zoom Scope Button + Classic Health/Fuel Trapezoid Gauge + Pause Circle */}
-        <div className="flex items-center gap-1 pointer-events-auto">
-          {/* Scope Zoom Circle */}
+        {/* TOP LEFT: Scope Button + Classic Health/Fuel Trapezoid Gauge + Pause Circle */}
+        <div className="flex items-center gap-1.5 pointer-events-auto">
+          {/* Scope Zoom Circle (Far Top Left as in screenshot) */}
           <button
             onClick={onToggleScope}
-            className="w-9 h-9 rounded-full border-2 border-neutral-500 bg-neutral-300 text-neutral-900 font-black text-[10px] shadow-md cursor-pointer hover:bg-neutral-400 active:scale-95 transition-all flex flex-col items-center justify-center relative"
-            title="تغيير المنظور"
+            className="w-9 h-9 rounded-full border-2 border-neutral-500 bg-neutral-300 text-neutral-900 font-black shadow-md cursor-pointer hover:bg-neutral-400 active:scale-95 transition-all flex flex-col items-center justify-center relative transform -skew-x-12"
+            title="تغيير المنظور (Scope)"
           >
-            <span className="text-[7px] text-neutral-600 font-sans tracking-tighter leading-none">SCOPE</span>
-            <span className="text-[10px] font-black leading-none">{scopeLevel}x</span>
+            <span className="text-[7px] text-neutral-600 font-sans tracking-tighter leading-none transform skew-x-12">SCOPE</span>
+            <span className="text-[10px] font-black leading-none transform skew-x-12">{scopeLevel}x</span>
           </button>
 
           {/* Mini Militia Classic Health & Boost Bar Container */}
-          <div className="bg-neutral-300/60 border-2 border-neutral-500/50 p-1 px-2 shadow-md flex flex-col gap-0.5 min-w-[110px] max-w-[130px] transform -skew-x-12 rounded-lg relative">
-            {/* Health Bar */}
+          <div className="bg-neutral-300/85 border-2 border-neutral-500 p-1.5 px-2.5 shadow-md flex flex-col gap-1 min-w-[130px] max-w-[150px] transform -skew-x-12 rounded-lg relative">
+            {/* Health Bar (Purple like original) */}
             <div className="flex items-center gap-1 transform skew-x-12">
-              <span className="text-[8px] shrink-0">❤️</span>
-              <div className="flex-1 bg-neutral-500/40 rounded-full h-1.5 p-0.5 border border-neutral-500/50 overflow-hidden relative">
+              <span className="text-[9px] shrink-0 font-bold">❤️</span>
+              <div className="flex-1 bg-neutral-600/40 rounded-full h-2 p-0.5 border border-neutral-500 overflow-hidden relative">
                 <div
-                  className="h-full rounded-full transition-all duration-150 bg-rose-500"
+                  className="h-full rounded-full transition-all duration-150 bg-purple-600 shadow-[0_0_6px_rgba(147,51,234,0.6)]"
                   style={{ width: `${Math.max(0, Math.min(100, player.health))}%` }}
                 />
               </div>
             </div>
 
-            {/* Boost Bar */}
+            {/* Boost Bar (Blue like original) */}
             <div className="flex items-center gap-1 transform skew-x-12">
-              <span className="text-[8px] shrink-0">⚡</span>
-              <div className="flex-1 bg-neutral-500/40 rounded-full h-1 p-0.5 border border-neutral-500/50 overflow-hidden relative">
+              <span className="text-[9px] shrink-0 font-bold">⚡</span>
+              <div className="flex-1 bg-neutral-600/40 rounded-full h-1.5 p-0.5 border border-neutral-500 overflow-hidden relative">
                 <div
-                  className="h-full rounded-full transition-all duration-75 bg-sky-500"
+                  className="h-full rounded-full transition-all duration-75 bg-blue-600 shadow-[0_0_6px_rgba(37,99,235,0.6)]"
                   style={{ width: `${Math.max(0, Math.min(100, player.fuel))}%` }}
                 />
               </div>
@@ -315,108 +315,55 @@ export const HUD: React.FC<HUDProps> = ({
             className="w-7 h-7 rounded-full bg-neutral-300 border-2 border-neutral-500 text-neutral-900 flex items-center justify-center hover:bg-neutral-400 active:scale-95 shadow-md cursor-pointer transform -skew-x-12 -ml-2 z-10"
             title="إيقاف مؤقت"
           >
-            <span className="text-[9px] font-black">⏸</span>
+            <span className="text-[10px] font-black transform skew-x-12">⏸</span>
           </button>
         </div>
 
-        {/* TOP CENTER: Match Timer & 3D Holo HUD Status */}
+        {/* TOP CENTER: Match Timer (Exact match with screenshot 05:49) */}
         <div className="flex flex-col items-center gap-0.5">
-          <div className="flex items-center gap-1 flex-wrap justify-center">
-            {/* Timer Button */}
-            <button
-              onClick={() => setShowScoreboard(!showScoreboard)}
-              className="flex items-center gap-1 bg-neutral-900/80 hover:bg-neutral-800 border border-amber-600/50 rounded-full px-2 py-0.5 shadow-sm pointer-events-auto cursor-pointer transition-all active:scale-95"
-              title="انقر لفتح لوحة الصدارة الكاملة"
-            >
-              <span className="text-white font-mono font-black text-[10px]">⏱️ {timerStr}</span>
-              <span className="text-amber-400 text-[8px] font-black border-l border-white/20 pl-1 ml-0.5">🏆</span>
-            </button>
-
-            {/* Quick Landscape / Orientation Toggle */}
-            <button
-              onClick={() => {
-                const newLandscape = !isLandscapeMode;
-                settingsManager.updateSettings({ isLandscapeMode: newLandscape });
-              }}
-              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[9px] font-black pointer-events-auto cursor-pointer transition-all active:scale-95 shadow-sm ${
-                isLandscapeMode
-                  ? 'bg-cyan-900/80 border-cyan-500 text-cyan-200'
-                  : 'bg-neutral-900/70 border-neutral-700 text-neutral-400 hover:text-white'
-              }`}
-              title="تبديل وضع الشاشة"
-            >
-              <span>{isLandscapeMode ? '📱' : '📱'}</span>
-            </button>
-
-            {/* Live Network Sync & Latency Badge */}
-            <div className="pointer-events-auto">
-              <NetworkStatusBadge compact />
-            </div>
-
-            {/* 3D Holo HUD Quick Toggle Button */}
-            <button
-              onClick={toggleHoloHUD}
-              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[9px] font-black pointer-events-auto cursor-pointer transition-all active:scale-95 shadow-sm ${
-                isHoloHUD
-                  ? 'bg-cyan-900/80 border-cyan-500 text-cyan-200'
-                  : 'bg-neutral-900/70 border-neutral-700 text-neutral-400 hover:text-white'
-              }`}
-              title="تفعيل/تعطيل واجهة الهولوجرام"
-            >
-              <span className={isHoloHUD ? 'animate-pulse text-cyan-300' : ''}>💠</span>
-            </button>
-          </div>
+          <button
+            onClick={() => setShowScoreboard(!showScoreboard)}
+            className="flex items-center gap-1 bg-neutral-300/85 border-2 border-neutral-500 rounded-md px-3 py-0.5 shadow-md pointer-events-auto cursor-pointer transition-all active:scale-95 transform -skew-x-12"
+            title="انقر لفتح لوحة الصدارة"
+          >
+            <span className="text-neutral-900 font-mono font-black text-xs transform skew-x-12">{timerStr}</span>
+          </button>
         </div>
 
-        {/* TOP RIGHT: Kill Feed & Weapon HUD */}
-        <div className="flex items-start gap-2 pointer-events-auto">
-          {/* Dynamic Kill Feed Overlay */}
-          <div className="flex flex-col items-end pointer-events-none mr-1 hidden md:flex opacity-60">
-            <AnimatePresence mode="popLayout">
-              {killFeed.slice(-3).map((item) => renderKillFeedItem(item))}
-            </AnimatePresence>
-          </div>
-
-          {/* Symmetrical Weapon HUD */}
-          <div className="flex items-center gap-1 opacity-80">
-            {/* Weapon Metallic Frame */}
-            <div
-              onClick={onSwitchWeapon}
-              className="bg-neutral-300/70 border-2 border-neutral-500/50 px-1.5 py-0.5 shadow-md flex items-center gap-1.5 cursor-pointer transform skew-x-12 rounded-lg hover:scale-105 active:scale-95 transition-all"
-              title="انقر لتبديل السلاح"
-            >
-              {/* Ammo status */}
-              <div className="transform -skew-x-12 flex flex-col items-start font-mono text-neutral-900 leading-none">
-                <div className="flex items-baseline gap-0.5">
-                  <span className="text-[11px] font-black tracking-tight">
-                    {String(currentAmmo).padStart(3, '0')}
-                  </span>
-                  <span className="text-[8px] text-neutral-600 font-bold">
-                    {String(reserveAmmo).padStart(3, '0')}
-                  </span>
-                </div>
-              </div>
-
-              {/* Weapon silhouette sprite */}
-              <div className="w-8 h-5 flex items-center justify-center transform -skew-x-12">
-                {renderWeaponIcon(currWeapon, "w-8 h-4 text-neutral-900")}
-              </div>
+        {/* TOP RIGHT: Metallic Trapezoid Weapon HUD & Grenade Icon (Exact match with screenshot) */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          <div
+            onClick={onSwitchWeapon}
+            className="bg-neutral-300/90 border-2 border-neutral-500 px-3 py-1 shadow-md flex items-center gap-3 cursor-pointer transform -skew-x-12 rounded-lg hover:scale-105 active:scale-95 transition-all"
+            title="انقر لتبديل السلاح"
+          >
+            {/* Current Ammo */}
+            <div className="transform -skew-x-12 flex items-baseline gap-1 font-mono text-neutral-900">
+              <span className="text-xs font-black tracking-tight">
+                {String(currentAmmo).padStart(3, '0')}
+              </span>
             </div>
 
-            {/* Circular Quick Action Reload Button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onReload();
-              }}
-              className="w-7 h-7 rounded-full bg-neutral-300 border-2 border-neutral-500 text-neutral-900 flex items-center justify-center hover:bg-neutral-400 active:scale-95 shadow-md cursor-pointer transform skew-x-12 -ml-2 z-10"
-              title="تلقيم السلاح"
-            >
-              <span className="text-[10px]">🔄</span>
-            </button>
+            {/* Weapon silhouette sprite */}
+            <div className="w-10 h-5 flex items-center justify-center transform -skew-x-12">
+              {renderWeaponIcon(currWeapon, "w-10 h-5 text-neutral-900")}
+            </div>
+
+            {/* Reserve Ammo */}
+            <div className="transform -skew-x-12 flex items-baseline gap-1 font-mono text-neutral-900">
+              <span className="text-xs font-bold tracking-tight">
+                {String(reserveAmmo).padStart(3, '0')}
+              </span>
+            </div>
+
+            {/* Grenade Indicator in Top Right Weapon HUD */}
+            <div className="transform -skew-x-12 flex items-center gap-1 pl-1 border-l border-neutral-400">
+              <span className="text-xs">💣</span>
+              <span className="text-[10px] font-black font-mono text-neutral-900">{player.grenades}</span>
+            </div>
           </div>
+        </div>
       </div>
-    </div>
 
     {/* BOTTOM LEFT: WEAPON CARD & AMMO */}
       <div className="flex flex-col items-start gap-1.5 pointer-events-auto">
@@ -439,7 +386,7 @@ export const HUD: React.FC<HUDProps> = ({
         )}
 
         <div className="flex items-end gap-2.5">
-          {/* Active Weapon Card */}
+          {/* Active Weapon Card (Compact & Exact match with screenshot style) */}
           <motion.div
             key={`active-weapon-box-${currWeapon}`}
             initial={{ scale: 0.94, y: 4, opacity: 0.8 }}
@@ -449,14 +396,14 @@ export const HUD: React.FC<HUDProps> = ({
               e.stopPropagation();
               onReload();
             }}
-            className={`backdrop-blur-md border-2 rounded-2xl p-2.5 shadow-xl flex items-center gap-3 cursor-pointer select-none transition-all ${
+            className={`backdrop-blur-md border-2 rounded-xl p-2 shadow-xl flex items-center gap-2.5 cursor-pointer select-none transition-all ${
               player.isReloading 
                 ? 'bg-neutral-900/95 border-amber-500/80 ring-2 ring-amber-500/20' 
                 : 'bg-neutral-900/90 border-neutral-700 hover:border-amber-400/60 active:scale-98'
             }`}
           >
             {/* Animated Weapon Icon */}
-            <div className="relative w-12 h-12 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-center shrink-0 overflow-hidden">
+            <div className="relative w-10 h-10 rounded-lg bg-neutral-950 border border-neutral-800 flex items-center justify-center shrink-0 overflow-hidden">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={`weapon-svg-${currWeapon}`}
@@ -481,27 +428,27 @@ export const HUD: React.FC<HUDProps> = ({
                     animate={{ rotate: 360 }}
                     transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}
                   >
-                    <RefreshCw className="w-5 h-5 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
+                    <RefreshCw className="w-4 h-4 text-amber-400" />
                   </motion.div>
                 </motion.div>
               )}
             </div>
 
             {/* Ammo & Status */}
-            <div className="flex flex-col min-w-[70px]">
+            <div className="flex flex-col min-w-[60px]">
               <div className="flex items-center justify-between gap-1">
-                <span className="text-xs font-bold text-neutral-200">
+                <span className="text-[11px] font-bold text-neutral-200">
                   {currCfg.nameAr}
                 </span>
                 {player.isReloading && (
-                  <span className="text-[9px] font-black text-amber-400 animate-pulse font-mono">
+                  <span className="text-[8px] font-black text-amber-400 animate-pulse font-mono">
                     تلقيم...
                   </span>
                 )}
               </div>
 
               <div className="flex items-baseline gap-1 mt-0.5">
-                <span className={`text-xl font-black font-mono transition-colors ${
+                <span className={`text-lg font-black font-mono transition-colors ${
                   player.isReloading 
                     ? 'text-amber-500/70' 
                     : currentAmmo <= 3 
@@ -510,66 +457,24 @@ export const HUD: React.FC<HUDProps> = ({
                 }`}>
                   {currentAmmo}
                 </span>
-                <span className="text-xs font-semibold text-neutral-400 font-mono">
+                <span className="text-[11px] font-semibold text-neutral-400 font-mono">
                   / {reserveAmmo}
                 </span>
               </div>
-
-              {/* Reloading Progress Bar */}
-              {player.isReloading ? (
-                <div className="w-full bg-neutral-950 rounded-full h-1.5 mt-1 overflow-hidden p-[1px] border border-neutral-800">
-                  <motion.div
-                    className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 h-full rounded-full shadow-[0_0_6px_rgba(251,191,36,0.5)]"
-                    style={{
-                      width: `${Math.max(0, Math.min(100, 100 - (player.reloadTimer / (player.reloadDuration || 1)) * 100))}%`
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="w-full bg-neutral-800/40 rounded-full h-1 mt-1 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      currentAmmo === 0 
-                        ? 'bg-rose-500 w-full animate-pulse' 
-                        : 'bg-neutral-600'
-                    }`}
-                    style={{
-                      width: `${(currentAmmo / (currCfg.magazineSize || 1)) * 100}%`
-                    }}
-                  />
-                </div>
-              )}
             </div>
 
-            {/* Action Buttons: Reload and Drop */}
-            <div className="flex flex-col gap-1">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReload();
-                }}
-                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all active:scale-90 cursor-pointer ${
-                  player.isReloading
-                    ? 'bg-amber-500/20 border-amber-500/60 text-amber-400 animate-spin'
-                    : 'bg-neutral-800 border-neutral-600 text-amber-400 hover:bg-neutral-700 hover:border-amber-400'
-                }`}
-                title="تلقيم (R)"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-              {onDropWeapon && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDropWeapon();
-                  }}
-                  className="w-7 h-7 rounded-lg bg-neutral-800/90 border border-amber-500/40 flex items-center justify-center text-amber-300 hover:bg-neutral-700 hover:border-amber-400 active:scale-90 cursor-pointer transition-all"
-                  title="رمي السلاح (Z / X)"
-                >
-                  <ArrowDownToLine className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+            {/* Scope / Reticle Toggle Button (Exact match with screenshot) */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleScope();
+              }}
+              className="w-9 h-9 rounded-full bg-neutral-950/90 border-2 border-rose-500/80 text-rose-400 flex items-center justify-center shadow-lg active:scale-90 hover:bg-neutral-900 cursor-pointer transition-all ml-1 relative overflow-hidden group"
+              title={`تغيير المنظور (${scopeLevel}x)`}
+            >
+              <div className="absolute inset-0 bg-rose-500/10 group-hover:bg-rose-500/25 transition-all" />
+              <span className="text-[10px] font-black relative z-10 font-mono">{scopeLevel}x</span>
+            </button>
           </motion.div>
 
           {/* Secondary Weapon Quick Swap Slot */}

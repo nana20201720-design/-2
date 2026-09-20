@@ -104,33 +104,74 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     }
   };
 
-  // Left joystick touch handling (Move & Jetpack)
+  // Refs for tracking touch identifiers and active touch state
+  const leftTouchIdRef = useRef<number | null>(null);
+  const rightTouchIdRef = useRef<number | null>(null);
+  const isTouchActiveRef = useRef<boolean>(false);
+
+  // Left joystick touch handling (Move & Jetpack - Fixed Joystick)
   const handleLeftStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!leftZoneRef.current) return;
+    
+    if ('touches' in e && e.changedTouches.length > 0) {
+      let matchedTouch = null;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].clientX < window.innerWidth / 2) {
+          matchedTouch = e.changedTouches[i];
+          break;
+        }
+      }
+      if (!matchedTouch) return; // Strict: ignore if not on left side
+      leftTouchIdRef.current = matchedTouch.identifier;
+    }
+
     const rect = leftZoneRef.current.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
-
-    const ox = clientX - rect.left;
-    const oy = clientY - rect.top;
-
     setLeftActive(true);
-    setLeftOrigin({ x: ox, y: oy });
+    setLeftOrigin({ x: 80, y: rect.height - 80 });
     setLeftThumb({ x: 0, y: 0 });
     engine?.setMoveInput(0, 0);
   }, [engine]);
 
   const handleLeftMove = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!leftActive || !leftZoneRef.current) return;
     const rect = leftZoneRef.current.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
 
-    const currentX = clientX - rect.left;
-    const currentY = clientY - rect.top;
+    let clientX = 0;
+    let clientY = 0;
 
-    let dx = currentX - leftOrigin.x;
-    let dy = currentY - leftOrigin.y;
+    if ('touches' in e) {
+      let found = false;
+      const touches = e.targetTouches; // Only touches on this element!
+      if (leftTouchIdRef.current !== null) {
+        for (let i = 0; i < touches.length; i++) {
+          if (touches[i].identifier === leftTouchIdRef.current) {
+            clientX = touches[i].clientX;
+            clientY = touches[i].clientY;
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found && touches.length > 0) {
+        clientX = touches[0].clientX;
+        clientY = touches[0].clientY;
+      } else if (!found) {
+        return; // No matching touch in left zone
+      }
+    } else {
+      clientX = (e as React.MouseEvent).clientX;
+      clientY = (e as React.MouseEvent).clientY;
+    }
+
+    const centerX = rect.left + 80;
+    const centerY = rect.bottom - 80;
+
+    let dx = clientX - centerX;
+    let dy = clientY - centerY;
     const dist = Math.hypot(dx, dy);
 
     if (dist > maxRadius) {
@@ -143,43 +184,91 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     const normX = dx / maxRadius;
     const normY = dy / maxRadius;
     engine?.setMoveInput(normX, normY);
-    // Mini Militia signature: pushing joystick up or diagonally automatically fires the Jetpack!
     engine?.setJetpack(normY < -0.15);
-  }, [leftActive, leftOrigin, engine]);
+  }, [leftActive, engine]);
 
-  const handleLeftEnd = useCallback(() => {
+  const handleLeftEnd = useCallback((e?: React.TouchEvent | React.MouseEvent) => {
+    if ('touches' in (e || {}) && leftTouchIdRef.current !== null) {
+      const changed = (e as React.TouchEvent).changedTouches;
+      let ended = false;
+      for (let i = 0; i < changed.length; i++) {
+        if (changed[i].identifier === leftTouchIdRef.current) {
+          ended = true;
+          break;
+        }
+      }
+      if (!ended) return; 
+    }
+
+    leftTouchIdRef.current = null;
     setLeftActive(false);
     setLeftThumb({ x: 0, y: 0 });
     engine?.setMoveInput(0, 0);
     engine?.setJetpack(false);
   }, [engine]);
 
-  // Right joystick touch handling (Aiming +/- Shooting based on autoFire mode)
+  // Right joystick touch handling (Aiming - Fixed Joystick)
   const handleRightStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!rightZoneRef.current) return;
+
+    if ('touches' in e && e.changedTouches.length > 0) {
+      let matchedTouch = null;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].clientX >= window.innerWidth / 2) {
+          matchedTouch = e.changedTouches[i];
+          break;
+        }
+      }
+      if (!matchedTouch) return; // Strict: ignore if not on right side
+      rightTouchIdRef.current = matchedTouch.identifier;
+    }
+
     const rect = rightZoneRef.current.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
-
-    const ox = clientX - rect.left;
-    const oy = clientY - rect.top;
-
     setRightActive(true);
-    setRightOrigin({ x: ox, y: oy });
+    setRightOrigin({ x: rect.width - 140, y: rect.height - 80 });
     setRightThumb({ x: 0, y: 0 });
   }, []);
 
   const handleRightMove = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!rightActive || !rightZoneRef.current) return;
     const rect = rightZoneRef.current.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
 
-    const currentX = clientX - rect.left;
-    const currentY = clientY - rect.top;
+    let clientX = 0;
+    let clientY = 0;
 
-    let dx = currentX - rightOrigin.x;
-    let dy = currentY - rightOrigin.y;
+    if ('touches' in e) {
+      let found = false;
+      const touches = e.targetTouches; // Only touches on this element!
+      if (rightTouchIdRef.current !== null) {
+        for (let i = 0; i < touches.length; i++) {
+          if (touches[i].identifier === rightTouchIdRef.current) {
+            clientX = touches[i].clientX;
+            clientY = touches[i].clientY;
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found && touches.length > 0) {
+        clientX = touches[0].clientX;
+        clientY = touches[0].clientY;
+      } else if (!found) {
+        return; // No matching touch in right zone
+      }
+    } else {
+      clientX = (e as React.MouseEvent).clientX;
+      clientY = (e as React.MouseEvent).clientY;
+    }
+
+    const centerX = rect.right - 140;
+    const centerY = rect.bottom - 80;
+
+    let dx = clientX - centerX;
+    let dy = clientY - centerY;
     const dist = Math.hypot(dx, dy);
 
     if (dist > maxRadius) {
@@ -192,13 +281,24 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     if (dist > 10) {
       const normX = dx / maxRadius;
       const normY = dy / maxRadius;
-      // If autoFire is true: shoot automatically while aiming!
-      // If autoFire is false: aim direction ONLY without firing!
       engine?.setAimInput(normX, normY, autoFire);
     }
-  }, [rightActive, rightOrigin, autoFire, engine]);
+  }, [rightActive, autoFire, engine]);
 
-  const handleRightEnd = useCallback(() => {
+  const handleRightEnd = useCallback((e?: React.TouchEvent | React.MouseEvent) => {
+    if ('touches' in (e || {}) && rightTouchIdRef.current !== null) {
+      const changed = (e as React.TouchEvent).changedTouches;
+      let ended = false;
+      for (let i = 0; i < changed.length; i++) {
+        if (changed[i].identifier === rightTouchIdRef.current) {
+          ended = true;
+          break;
+        }
+      }
+      if (!ended) return;
+    }
+
+    rightTouchIdRef.current = null;
     setRightActive(false);
     setRightThumb({ x: 0, y: 0 });
     if (autoFire && !shootPressed) {
@@ -266,6 +366,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     };
 
     const handleMouseMove = (e: MouseEvent) => {
+      if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
       if (!engine) return;
       const target = e.target as HTMLElement;
       if (target && target.closest('button, [role="button"], input, a')) {
@@ -285,8 +386,9 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     };
 
     const handleMouseDown = (e: MouseEvent) => {
+      if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
       const target = e.target as HTMLElement;
-      if (target && target.closest('button, [role="button"], input, a')) {
+      if (target && target.closest('button, [role="button"], input, a, #zone-movement, #zone-aim')) {
         return;
       }
       if (e.button === 0) engine?.setShoot(true);
@@ -297,6 +399,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     };
 
     const handleMouseUp = (e: MouseEvent) => {
+      if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
       if (e.button === 0) engine?.setShoot(false);
       if (e.button === 2) {
         e.preventDefault();
@@ -347,41 +450,14 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         </div>
       )}
 
-      {/* TOP LEFT SCOPE ZOOM & AUTO-FIRE MODE TOGGLE BUTTONS */}
+      {/* TOP LEFT SCOPE ZOOM BUTTON (EXACT MATCH WITH SCREENSHOT [1x]) */}
       <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-auto z-50">
-        {/* SCOPE ZOOM BUTTON (1X / 2X / 3X) - EXACT MATCH WITH SCREENSHOT */}
         <button
           onClick={handleToggleScope}
-          className="w-10 h-10 rounded-full border-2 border-white/90 bg-neutral-900/80 backdrop-blur-md flex items-center justify-center text-white font-black text-xs shadow-2xl active:scale-90 cursor-pointer hover:bg-neutral-800 transition-all"
-          title="تغيير المنظور / زوم الكاميرا (1X / 2X / 3X)"
+          className="w-10 h-10 rounded-full border-2 border-neutral-500 bg-neutral-300 text-neutral-900 font-black text-xs shadow-2xl active:scale-90 cursor-pointer hover:bg-neutral-400 transition-all flex items-center justify-center"
+          title="تغيير المنظور (1X / 2X / 3X)"
         >
           {scopeLevel}x
-        </button>
-
-        {/* AUTO-FIRE / MANUAL FIRE TOGGLE BUTTON */}
-        <button
-          onClick={() => {
-            setAutoFire((prev) => !prev);
-            try { soundManager.playButtonClick(); } catch {}
-          }}
-          className={`px-3 py-1.5 rounded-full border-2 text-xs font-black flex items-center gap-1.5 shadow-2xl active:scale-95 cursor-pointer transition-all ${
-            autoFire
-              ? 'bg-amber-500/90 border-amber-300 text-neutral-950 hover:bg-amber-400'
-              : 'bg-rose-950/90 border-rose-400 text-rose-200 hover:bg-rose-900'
-          }`}
-          title="تبديل وضع إطلاق النار (تلقائي مع الأيم أو يدوي)"
-        >
-          {autoFire ? (
-            <>
-              <Zap className="w-3.5 h-3.5 fill-current" />
-              <span>ضرب تلقائي</span>
-            </>
-          ) : (
-            <>
-              <Flame className="w-3.5 h-3.5 text-rose-400 fill-current" />
-              <span>ضرب يدوي</span>
-            </>
-          )}
         </button>
       </div>
 
@@ -400,14 +476,13 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           onMouseMove={handleLeftMove}
           onMouseUp={handleLeftEnd}
         >
-          {/* Joystick Visual Indicator */}
+          {/* Left Joystick Fixed Visual Indicator */}
           <div
             className="absolute transition-opacity duration-200 pointer-events-none"
             style={{
-              left: leftActive ? `${leftOrigin.x}px` : '70px',
-              top: leftActive ? `${leftOrigin.y}px` : '82%',
-              transform: 'translate(-50%, -50%)',
-              opacity: leftActive ? 0.95 : 0.4,
+              left: '80px',
+              bottom: '50px',
+              opacity: leftActive ? 0.95 : 0.45,
             }}
           >
             {/* Base Ring (Vibrant Translucent Blue) */}
@@ -441,14 +516,13 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           onMouseMove={handleRightMove}
           onMouseUp={handleRightEnd}
         >
-          {/* Joystick Visual Indicator */}
+          {/* Right Joystick Fixed Visual Indicator */}
           <div
             className="absolute transition-opacity duration-200 pointer-events-none"
             style={{
-              right: rightActive ? `calc(100vw - ${rightOrigin.x}px)` : '70px',
-              top: rightActive ? `${rightOrigin.y}px` : '82%',
-              transform: 'translate(50%, -50%)',
-              opacity: rightActive ? 0.95 : 0.4,
+              right: '130px',
+              bottom: '50px',
+              opacity: rightActive ? 0.95 : 0.45,
             }}
           >
             {/* Base Ring (Vibrant Translucent Red) */}
@@ -582,34 +656,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         </button>
       </div>
 
-      {/* UTILITY FLOATING BUTTONS (RELOAD & DROP WEAPON) */}
-      <div className="absolute right-28 bottom-40 flex items-center gap-3 pointer-events-auto z-40">
-        {/* RELOAD BUTTON */}
-        <button
-          id="btn-reload"
-          className="w-10 h-10 rounded-full bg-neutral-900/60 border-2 border-white/80 text-white flex items-center justify-center shadow-lg backdrop-blur-md active:scale-90 hover:bg-neutral-900/80 cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            engine?.reloadPlayer();
-          }}
-          title="تلقيم السلاح (R)"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
-
-        {/* DROP WEAPON BUTTON */}
-        <button
-          id="btn-drop-weapon"
-          className="w-10 h-10 rounded-full bg-neutral-900/60 border-2 border-amber-400/80 text-amber-300 flex items-center justify-center shadow-lg backdrop-blur-md active:scale-90 hover:bg-neutral-900/80 cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            engine?.dropPlayerWeapon();
-          }}
-          title="رمي السلاح (Z / X)"
-        >
-          <ArrowDownToLine className="w-4 h-4 text-amber-300" />
-        </button>
-      </div>
+      {/* UTILITY FLOATING BUTTONS REMOVED TO MATCH ORIGINAL SCREENSHOT CLEANLINESS */}
     </div>
   );
 };

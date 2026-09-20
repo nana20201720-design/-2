@@ -87,6 +87,15 @@ export default defineConfig(() => {
     build: {
       outDir: path.resolve(__dirname, 'dist'),
       emptyOutDir: true,
+      chunkSizeWarningLimit: 5000,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom', 'framer-motion'],
+            threeVendor: ['three'],
+          },
+        },
+      },
     },
   };
 });

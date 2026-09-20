@@ -60,6 +60,10 @@ export default function BattleScreen() {
   const [matchTimer, setMatchTimer] = useState(222);
   const [spawnNotification, setSpawnNotification] = useState<string | null>(null);
   
+  // Game Mode & Player Count Selector State
+  const [selectedMode, setSelectedMode] = useState<GameMode>('deathmatch');
+  const [selectedPlayerCount, setSelectedPlayerCount] = useState<number>(4);
+
   // Interactive Active Battle Arena state
   const [activeArenaMatch, setActiveArenaMatch] = useState<{
     mode: GameMode;
@@ -332,10 +336,11 @@ export default function BattleScreen() {
     setTimeout(() => {
       soundManager.playRocketLaunch();
       setMatchSearching(false);
+      const modeNameAr = selectedMode === 'deathmatch' ? 'موت عشوائي (FFA)' : selectedMode === 'team' ? 'معركة الفرق' : 'وضع البقاء';
       setActiveArenaMatch({
-        mode: 'deathmatch',
+        mode: selectedMode,
         isSpectator: false,
-        title: 'قتال سريع - حلبة البؤرة Outpost',
+        title: `${modeNameAr} • ${selectedPlayerCount} لاعبين - حلبة Outpost`,
       });
     }, 700);
   };
@@ -511,6 +516,76 @@ export default function BattleScreen() {
 
       {/* RECHARTS VISUAL STATISTICS DASHBOARD */}
       <BattleStatsDashboard />
+
+      {/* GAME MODE & PLAYER COUNT SELECTOR CARD */}
+      <section className="bg-[#121c15] border-2 border-[#2b4430] rounded-2xl p-4 shadow-xl space-y-3">
+        <div className="flex items-center justify-between border-b border-[#233526] pb-2.5">
+          <h3 className="text-xs font-black text-amber-400 flex items-center gap-1.5">
+            <Target size={15} className="text-amber-500 animate-pulse" />
+            <span>اختر وضع اللعب وعدد المقاتلين في الساحة ⚔️</span>
+          </h3>
+          <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+            مخصص بالكامل
+          </span>
+        </div>
+
+        {/* Mode Selector */}
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { id: 'deathmatch', label: 'موت عشوائي (FFA)', icon: Crosshair, desc: 'الكل ضد الكل' },
+            { id: 'team', label: 'معركة الفرق (Team)', icon: Users, desc: 'فريق أزرق vs أحمر' },
+            { id: 'survival', label: 'وضع البقاء (Survival)', icon: Shield, desc: 'موجات لا نهائية' },
+          ].map((mode) => (
+            <button
+              key={mode.id}
+              onClick={() => {
+                soundManager.playButtonClick();
+                haptics.light();
+                setSelectedMode(mode.id as GameMode);
+              }}
+              className={`p-2.5 rounded-xl border flex flex-col items-center text-center transition-all cursor-pointer ${
+                selectedMode === mode.id
+                  ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-lg shadow-amber-500/10 scale-102'
+                  : 'bg-[#09100c] border-[#1d2f21] text-neutral-400 hover:border-neutral-700'
+              }`}
+            >
+              <mode.icon size={16} className={selectedMode === mode.id ? 'text-amber-400 mb-1' : 'text-neutral-500 mb-1'} />
+              <span className="text-xs font-black">{mode.label}</span>
+              <span className="text-[9px] opacity-75">{mode.desc}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Player Count Selector (1, 2, 4, 6) */}
+        <div className="pt-2 border-t border-[#233526]">
+          <span className="text-[11px] font-bold text-gray-300 block mb-2">عدد المقاتلين في الحلبة (Player Count):</span>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { count: 1, label: '1 لاعب (تدريب)' },
+              { count: 2, label: 'لاعبين (1v1)' },
+              { count: 4, label: '4 لاعبين (FFA)' },
+              { count: 6, label: '6 لاعبين (3v3)' },
+            ].map((pc) => (
+              <button
+                key={pc.count}
+                onClick={() => {
+                  soundManager.playButtonClick();
+                  haptics.light();
+                  setSelectedPlayerCount(pc.count);
+                }}
+                className={`py-2 px-1 rounded-xl border text-xs font-black transition-all cursor-pointer flex flex-col items-center justify-center ${
+                  selectedPlayerCount === pc.count
+                    ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-md shadow-emerald-500/10'
+                    : 'bg-[#09100c] border-[#1d2f21] text-neutral-400 hover:border-neutral-700'
+                }`}
+              >
+                <span className="text-sm font-black font-mono">{pc.count}</span>
+                <span className="text-[9px] opacity-80">{pc.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Giant High-Energy Quick Play CTA - Launches Real Arena! */}
       <button
