@@ -515,15 +515,6 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
             <LogOut size={14} />
             <span className="hidden sm:inline">إنهاء وخروج</span>
           </button>
-
-          {/* Arena Name & Mode Badge */}
-          <div className="bg-neutral-900/85 backdrop-blur-md border border-neutral-700/80 px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-lg">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-black text-white">{arenaTitle}</span>
-            <span className="text-[10px] font-bold text-amber-400 border-r border-neutral-700 pr-2 font-mono">
-              {mode === 'deathmatch' ? 'FFA قتال حر' : mode === 'team' ? 'فرق 4v4' : 'بقاء'}
-            </span>
-          </div>
         </div>
 
         {/* Tactical Spectator / Player Switcher Strip */}

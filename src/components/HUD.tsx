@@ -160,10 +160,10 @@ export const HUD: React.FC<HUDProps> = ({
     const victimName = item.isVictimBot ? `[BOT] ${item.victimName}` : item.victimName;
     const style = settingsManager.getSettings().killFeedIconStyle;
 
-    let containerStyle = "flex items-center gap-1.5 bg-black/60 px-2 py-1 rounded border border-white/5 text-[10px] md:text-xs mb-1 shadow-sm";
-    let killerStyle = `${item.isKillerBot ? 'text-neutral-400' : 'text-sky-300'} font-bold`;
-    let victimStyle = `${item.isVictimBot ? 'text-neutral-400' : 'text-rose-300'} font-bold`;
-    let iconStyle = "w-4 h-3 text-white";
+    let containerStyle = "flex items-center gap-1 bg-black/40 px-1.5 py-0.5 rounded border border-white/5 text-[9px] mb-0.5 shadow-sm opacity-80";
+    let killerStyle = `${item.isKillerBot ? 'text-neutral-400' : 'text-sky-400'} font-bold`;
+    let victimStyle = `${item.isVictimBot ? 'text-neutral-400' : 'text-rose-400'} font-bold`;
+    let iconStyle = "w-3 h-2 text-white";
 
     if (style === 'bold') {
       containerStyle += " border-white/20";
@@ -284,11 +284,11 @@ export const HUD: React.FC<HUDProps> = ({
           </button>
 
           {/* Mini Militia Classic Health & Boost Bar Container */}
-          <div className="bg-neutral-300 border-2 border-neutral-500 p-1 px-2 shadow-md flex flex-col gap-0.5 min-w-[130px] max-w-[150px] transform -skew-x-12 rounded-lg relative">
+          <div className="bg-neutral-300/60 border-2 border-neutral-500/50 p-1 px-2 shadow-md flex flex-col gap-0.5 min-w-[110px] max-w-[130px] transform -skew-x-12 rounded-lg relative">
             {/* Health Bar */}
             <div className="flex items-center gap-1 transform skew-x-12">
-              <span className="text-[10px] shrink-0">❤️</span>
-              <div className="flex-1 bg-neutral-500/40 rounded-full h-2.5 p-0.5 border border-neutral-500 overflow-hidden relative">
+              <span className="text-[8px] shrink-0">❤️</span>
+              <div className="flex-1 bg-neutral-500/40 rounded-full h-1.5 p-0.5 border border-neutral-500/50 overflow-hidden relative">
                 <div
                   className="h-full rounded-full transition-all duration-150 bg-rose-500"
                   style={{ width: `${Math.max(0, Math.min(100, player.health))}%` }}
@@ -298,8 +298,8 @@ export const HUD: React.FC<HUDProps> = ({
 
             {/* Boost Bar */}
             <div className="flex items-center gap-1 transform skew-x-12">
-              <span className="text-[10px] shrink-0">⚡</span>
-              <div className="flex-1 bg-neutral-500/40 rounded-full h-1.5 p-0.5 border border-neutral-500 overflow-hidden relative">
+              <span className="text-[8px] shrink-0">⚡</span>
+              <div className="flex-1 bg-neutral-500/40 rounded-full h-1 p-0.5 border border-neutral-500/50 overflow-hidden relative">
                 <div
                   className="h-full rounded-full transition-all duration-75 bg-sky-500"
                   style={{ width: `${Math.max(0, Math.min(100, player.fuel))}%` }}
@@ -369,35 +369,20 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
 
         {/* TOP RIGHT: Kill Feed & Weapon HUD */}
-        <div className="flex items-start gap-4 pointer-events-auto">
+        <div className="flex items-start gap-2 pointer-events-auto">
           {/* Dynamic Kill Feed Overlay */}
-          <div className="flex flex-col items-end pointer-events-none mr-2 hidden md:flex">
+          <div className="flex flex-col items-end pointer-events-none mr-1 hidden md:flex opacity-60">
             <AnimatePresence mode="popLayout">
-              {killFeed.slice(-5).map((item) => renderKillFeedItem(item))}
+              {killFeed.slice(-3).map((item) => renderKillFeedItem(item))}
             </AnimatePresence>
           </div>
 
-          {/* 3D Hologram Tactical Menu Button */}
-          {onOpenTacticalWheel && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenTacticalWheel();
-              }}
-              className="px-2.5 py-1.5 rounded-xl bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-400/60 text-cyan-300 font-mono font-bold text-xs flex items-center gap-1.5 shadow-[0_0_15px_rgba(6,182,212,0.35)] backdrop-blur-md active:scale-95 transition-all cursor-pointer pointer-events-auto"
-              title="فتح القائمة التكتيكية 3D (الأسلحة والدروع والدعم)"
-            >
-              <Target size={14} className="text-cyan-400 animate-pulse" />
-              <span className="text-[10px] font-black tracking-wider">3D عتاد</span>
-            </button>
-          )}
-
-          {/* Mini Militia Classic Symmetrical Weapon HUD */}
-          <div className="flex items-center gap-1">
+          {/* Symmetrical Weapon HUD */}
+          <div className="flex items-center gap-1 opacity-80">
             {/* Weapon Metallic Frame */}
             <div
               onClick={onSwitchWeapon}
-              className="bg-neutral-300 border-2 border-neutral-500 px-2 py-1 shadow-md flex items-center gap-2 cursor-pointer transform skew-x-12 rounded-lg hover:scale-105 active:scale-95 transition-all"
+              className="bg-neutral-300/70 border-2 border-neutral-500/50 px-1.5 py-0.5 shadow-md flex items-center gap-1.5 cursor-pointer transform skew-x-12 rounded-lg hover:scale-105 active:scale-95 transition-all"
               title="انقر لتبديل السلاح"
             >
               {/* Ammo status */}

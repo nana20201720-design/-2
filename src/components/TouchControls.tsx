@@ -357,7 +357,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
       <div
         id="zone-movement"
         ref={leftZoneRef}
-        className="absolute left-0 bottom-0 w-[45vw] h-[55vh] pointer-events-auto touch-none"
+        className="absolute left-0 bottom-0 w-[28vw] h-[45vh] pointer-events-auto touch-none"
         onTouchStart={handleLeftStart}
         onTouchMove={handleLeftMove}
         onTouchEnd={handleLeftEnd}
@@ -370,10 +370,10 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         <div
           className="absolute transition-opacity duration-200 pointer-events-none"
           style={{
-            left: leftActive ? `${leftOrigin.x}px` : '100px',
-            top: leftActive ? `${leftOrigin.y}px` : 'calc(55vh - 110px)',
+            left: leftActive ? `${leftOrigin.x}px` : '80px',
+            top: leftActive ? `${leftOrigin.y}px` : 'calc(50vh - 80px)',
             transform: 'translate(-50%, -50%)',
-            opacity: leftActive ? 0.95 : 0.75,
+            opacity: leftActive ? 0.95 : 0.6,
           }}
         >
           {/* Base Ring (Vibrant Translucent Blue) */}
@@ -423,7 +423,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
       <div
         id="zone-aim"
         ref={rightZoneRef}
-        className="absolute right-0 bottom-0 w-[45vw] h-[55vh] pointer-events-auto touch-none"
+        className="absolute right-0 bottom-0 w-[28vw] h-[45vh] pointer-events-auto touch-none"
         onTouchStart={handleRightStart}
         onTouchMove={handleRightMove}
         onTouchEnd={handleRightEnd}
@@ -436,10 +436,10 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         <div
           className="absolute transition-opacity duration-200 pointer-events-none"
           style={{
-            left: rightActive ? `${rightOrigin.x}px` : 'calc(45vw - 110px)',
-            top: rightActive ? `${rightOrigin.y}px` : 'calc(55vh - 110px)',
-            transform: 'translate(-50%, -50%)',
-            opacity: rightActive ? 0.95 : 0.75,
+            right: rightActive ? `calc(33vw - ${rightOrigin.x}px)` : '80px',
+            top: rightActive ? `${rightOrigin.y}px` : 'calc(50vh - 80px)',
+            transform: 'translate(50%, -50%)',
+            opacity: rightActive ? 0.95 : 0.6,
           }}
         >
           {/* Base Ring (Vibrant Translucent Red) */}
@@ -502,14 +502,29 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
             shootPressed
               ? 'bg-rose-600 border-white scale-95 shadow-rose-600/50'
               : autoFire
-              ? 'bg-red-600/50 border-red-300 text-white hover:bg-red-600/70'
+              ? 'bg-red-600/40 border-red-300/30 text-white hover:bg-red-600/70'
               : 'bg-rose-600 border-amber-300 text-white animate-pulse hover:bg-rose-500'
           }`}
-          onTouchStart={handleShootStart}
-          onTouchEnd={handleShootEnd}
-          onTouchCancel={handleShootEnd}
-          onMouseDown={handleShootStart}
-          onMouseUp={handleShootEnd}
+          onTouchStart={(e) => {
+            e.stopPropagation();
+            handleShootStart(e);
+          }}
+          onTouchEnd={(e) => {
+            e.stopPropagation();
+            handleShootEnd(e);
+          }}
+          onTouchCancel={(e) => {
+            e.stopPropagation();
+            handleShootEnd(e);
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            handleShootStart(e);
+          }}
+          onMouseUp={(e) => {
+            e.stopPropagation();
+            handleShootEnd(e);
+          }}
           title="زر إطلاق النار المنفصل 🔫"
         >
           <Flame className="w-6 h-6 text-white fill-current" />

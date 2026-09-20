@@ -316,52 +316,11 @@ export class WeatherSystem {
 
   /**
    * Renders the Tactical Weather Control & Status Badge on HUD
+   * Minimized to prevent screen clutter per user request.
    */
   public renderHUD(ctx: CanvasRenderingContext2D, width: number, height: number) {
-    const cfg = WEATHER_CONFIGS[this.targetWeather];
-    const badgeX = width - 280;
-    const badgeY = 68;
-    const badgeW = 260;
-    const badgeH = 46;
-
-    ctx.save();
-
-    // Semi-transparent high-tech tactical glass background
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 10);
-    ctx.fill();
-    ctx.stroke();
-
-    // Weather Icon & Title
-    ctx.font = '700 13px "Chakra Petch", sans-serif';
-    ctx.fillStyle = '#38bdf8';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${cfg.icon} ${cfg.nameAr}`, badgeX + badgeW - 12, badgeY + 22);
-
-    // Wind status and timer
-    ctx.font = '600 11px sans-serif';
-    ctx.fillStyle = '#94a3b8';
-    const windText = `💨 الرياح: ${Math.abs(cfg.windSpeed)} km/h ${cfg.windSpeed >= 0 ? 'شرقية ➡' : 'غربيه ⬅'}`;
-    ctx.fillText(windText, badgeX + badgeW - 12, badgeY + 38);
-
-    // Auto Cycle Indicator Pill
-    ctx.fillStyle = this.autoCycle ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)';
-    ctx.strokeStyle = this.autoCycle ? '#22c55e' : '#ef4444';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(badgeX + 10, badgeY + 12, 60, 22, 6);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.font = '700 10px sans-serif';
-    ctx.fillStyle = this.autoCycle ? '#4ade80' : '#f87171';
-    ctx.textAlign = 'center';
-    ctx.fillText(this.autoCycle ? 'تلقائي 🔄' : 'يدوي 🎯', badgeX + 40, badgeY + 27);
-
-    ctx.restore();
+    // Hidden to ensure clean, professional game HUD
+    return;
   }
 }
 

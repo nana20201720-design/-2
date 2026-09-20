@@ -96,9 +96,9 @@ export const DEFAULT_SETTINGS: TacticalSettings = {
   isLandscapeMode: false,
   killFeedIconStyle: 'classic',
   controlLayout: {
-    grenadeBtn: { bottom: 12, left: 80 },
-    meleeBtn: { bottom: 12, right: 80 },
-    shootBtn: { bottom: 12, right: 160 },
+    grenadeBtn: { bottom: 200, left: 35 },
+    meleeBtn: { bottom: 200, right: 35 },
+    shootBtn: { bottom: 310, right: 35 },
   },
   isDraggingControls: false,
 };
@@ -115,7 +115,12 @@ class SettingsManager {
     try {
       const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (stored) {
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+        const settings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+        // Force reset layout if it's the old overlapping one (bottom < 50)
+        if (settings.controlLayout.shootBtn.bottom < 50 || settings.controlLayout.meleeBtn.bottom < 50) {
+          settings.controlLayout = { ...DEFAULT_SETTINGS.controlLayout };
+        }
+        return settings;
       }
     } catch {
       // Ignore JSON error
