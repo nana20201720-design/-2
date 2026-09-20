@@ -19,7 +19,7 @@
     -webkit-tap-highlight-color: transparent;
     user-select: none;
     -webkit-user-select: none;
-    touch-action: pan-y pinch-zoom;
+    touch-action: none;
     -webkit-overflow-scrolling: touch;
   }
 

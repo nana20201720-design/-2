@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Crosshair, RotateCcw, ArrowRightLeft, Bomb, ArrowDownToLine, Flame, Zap, SlidersHorizontal, Move } from 'lucide-react';
+import { Crosshair, RotateCcw, ArrowRightLeft, Bomb, ArrowDownToLine, Flame, Zap, SlidersHorizontal, Move, ChevronRight } from 'lucide-react';
 import { DndContext, PointerSensor, useSensor, useSensors, useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { GameEngine } from '../game/gameEngine';
@@ -52,7 +52,19 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   // Tactile button states
   const [meleePressed, setMeleePressed] = useState(false);
   const [controlLayout, setControlLayout] = useState(settingsManager.getSettings().controlLayout);
-  const [isDragging, setIsDragging] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsPortrait(window.innerHeight > window.innerWidth);
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
 
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -315,6 +327,26 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
   return (
     <div id="touch-controls-container" className="absolute inset-0 pointer-events-none select-none z-30">
+      {/* LANDSCAPE ORIENTATION WARNING OVERLAY */}
+      {isPortrait && (
+        <div className="fixed inset-0 z-[10000] bg-[#040705] flex flex-col items-center justify-center p-6 text-center pointer-events-auto">
+          <div className="w-20 h-20 bg-amber-500/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
+            <RotateCcw className="w-10 h-10 text-amber-500 animate-spin-slow" />
+          </div>
+          <h2 className="text-2xl font-black text-white mb-2 tracking-tight">يرجى تدوير الهاتف</h2>
+          <p className="text-gray-400 text-sm max-w-[280px] leading-relaxed">
+            للحصول على أفضل تجربة قتالية وتحكم دقيق، يرجى استخدام الوضع الأفقي (Landscape).
+          </p>
+          <div className="mt-8 flex gap-2">
+            <div className="w-12 h-8 border-2 border-amber-500/50 rounded-md rotate-90" />
+            <div className="w-4 h-4 flex items-center justify-center self-center">
+              <ChevronRight className="text-amber-500" />
+            </div>
+            <div className="w-12 h-8 border-2 border-amber-500 rounded-md" />
+          </div>
+        </div>
+      )}
+
       {/* TOP LEFT SCOPE ZOOM & AUTO-FIRE MODE TOGGLE BUTTONS */}
       <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-auto z-50">
         {/* SCOPE ZOOM BUTTON (1X / 2X / 3X) - EXACT MATCH WITH SCREENSHOT */}
@@ -353,47 +385,91 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         </button>
       </div>
 
-      {/* LEFT TOUCH ZONE: MOVEMENT & JETPACK VIRTUAL JOYSTICK */}
-      <div
-        id="zone-movement"
-        ref={leftZoneRef}
-        className="absolute left-0 bottom-0 w-[28vw] h-[45vh] pointer-events-auto touch-none"
-        onTouchStart={handleLeftStart}
-        onTouchMove={handleLeftMove}
-        onTouchEnd={handleLeftEnd}
-        onTouchCancel={handleLeftEnd}
-        onMouseDown={handleLeftStart}
-        onMouseMove={handleLeftMove}
-        onMouseUp={handleLeftEnd}
-      >
-        {/* Joystick Visual Indicator */}
+      {/* MULTI-TOUCH ZONE MANAGER: 50/50 SPLIT WITH CENTER DEAD ZONE */}
+      <div className="absolute inset-0 flex pointer-events-none">
+        {/* LEFT TOUCH ZONE: MOVEMENT & JETPACK (48% SCREEN) */}
         <div
-          className="absolute transition-opacity duration-200 pointer-events-none"
-          style={{
-            left: leftActive ? `${leftOrigin.x}px` : '80px',
-            top: leftActive ? `${leftOrigin.y}px` : 'calc(50vh - 80px)',
-            transform: 'translate(-50%, -50%)',
-            opacity: leftActive ? 0.95 : 0.6,
-          }}
+          id="zone-movement"
+          ref={leftZoneRef}
+          className="w-[48vw] h-full pointer-events-auto touch-none"
+          onTouchStart={handleLeftStart}
+          onTouchMove={handleLeftMove}
+          onTouchEnd={handleLeftEnd}
+          onTouchCancel={handleLeftEnd}
+          onMouseDown={handleLeftStart}
+          onMouseMove={handleLeftMove}
+          onMouseUp={handleLeftEnd}
         >
-          {/* Base Ring (Vibrant Translucent Blue) */}
-          <div className="w-28 h-28 rounded-full border-3 border-cyan-400/80 bg-cyan-950/25 backdrop-blur-md flex items-center justify-center shadow-lg">
-            <div className="w-16 h-16 rounded-full border border-cyan-400/30" />
-            <div
-              className="absolute w-14 h-14 rounded-full bg-cyan-500/40 border-2 border-cyan-200 shadow-md flex items-center justify-center transition-transform duration-75"
-              style={{
-                transform: `translate(${leftThumb.x}px, ${leftThumb.y}px)`,
-              }}
-            >
-              <div className="w-6 h-6 rounded-full bg-white/70" />
+          {/* Joystick Visual Indicator */}
+          <div
+            className="absolute transition-opacity duration-200 pointer-events-none"
+            style={{
+              left: leftActive ? `${leftOrigin.x}px` : '70px',
+              top: leftActive ? `${leftOrigin.y}px` : '82%',
+              transform: 'translate(-50%, -50%)',
+              opacity: leftActive ? 0.95 : 0.4,
+            }}
+          >
+            {/* Base Ring (Vibrant Translucent Blue) */}
+            <div className={`w-24 h-24 rounded-full border-3 transition-colors ${leftActive ? 'border-cyan-400 bg-cyan-950/40 shadow-[0_0_15px_rgba(34,211,238,0.4)]' : 'border-cyan-400/80 bg-cyan-950/25'} backdrop-blur-md flex items-center justify-center shadow-lg`}>
+              <div className="w-14 h-14 rounded-full border border-cyan-400/30" />
+              <div
+                className="absolute w-12 h-12 rounded-full bg-cyan-500/40 border-2 border-cyan-200 shadow-md flex items-center justify-center transition-transform duration-75"
+                style={{
+                  transform: `translate(${leftThumb.x}px, ${leftThumb.y}px)`,
+                }}
+              >
+                <div className="w-5 h-5 rounded-full bg-white/70" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* CENTER DEAD ZONE (4% SCREEN) - PREVENTS CROSS-TALK */}
+        <div className="w-[4vw] h-full pointer-events-none border-x border-white/5 bg-white/2" />
+
+        {/* RIGHT TOUCH ZONE: AIM & ROTATION (48% SCREEN) */}
+        <div
+          id="zone-aim"
+          ref={rightZoneRef}
+          className="w-[48vw] h-full pointer-events-auto touch-none"
+          onTouchStart={handleRightStart}
+          onTouchMove={handleRightMove}
+          onTouchEnd={handleRightEnd}
+          onTouchCancel={handleRightEnd}
+          onMouseDown={handleRightStart}
+          onMouseMove={handleRightMove}
+          onMouseUp={handleRightEnd}
+        >
+          {/* Joystick Visual Indicator */}
+          <div
+            className="absolute transition-opacity duration-200 pointer-events-none"
+            style={{
+              right: rightActive ? `calc(100vw - ${rightOrigin.x}px)` : '70px',
+              top: rightActive ? `${rightOrigin.y}px` : '82%',
+              transform: 'translate(50%, -50%)',
+              opacity: rightActive ? 0.95 : 0.4,
+            }}
+          >
+            {/* Base Ring (Vibrant Translucent Red) */}
+            <div className={`w-24 h-24 rounded-full border-3 transition-colors ${rightActive ? 'border-rose-500 bg-rose-950/40 shadow-[0_0_15px_rgba(244,63,94,0.4)]' : 'border-rose-500/80 bg-rose-950/25'} backdrop-blur-md flex items-center justify-center shadow-lg`}>
+              <div className="w-14 h-14 rounded-full border border-rose-500/30" />
+              <div
+                className="absolute w-12 h-12 rounded-full bg-red-600/45 border-2 border-red-300 shadow-md flex items-center justify-center transition-transform duration-75"
+                style={{
+                  transform: `translate(${rightThumb.x}px, ${rightThumb.y}px)`,
+                }}
+              >
+                <Crosshair className="w-6 h-6 text-white" />
+              </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* GRENADE BUTTON - EXACT POSITION FROM SCREENSHOT (BOTTOM-LEFT ADJACENT TO MOVEMENT JOYSTICK) */}
+      
+      {/* GRENADE BUTTON - POSITIONED ABOVE MOVEMENT JOYSTICK */}
       <div 
-        className="absolute pointer-events-auto z-40"
+        className="absolute pointer-events-auto z-50"
         style={{ bottom: `${controlLayout.grenadeBtn.bottom}px`, left: `${controlLayout.grenadeBtn.left}px` }}
       >
         <button
@@ -404,6 +480,11 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
               ? 'bg-neutral-900/60 text-white hover:bg-neutral-900/80'
               : 'bg-neutral-900/20 text-neutral-400 opacity-40 cursor-not-allowed'
           }`}
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            engine?.throwPlayerGrenade();
+          }}
           onClick={(e) => {
             e.stopPropagation();
             engine?.throwPlayerGrenade();
@@ -419,47 +500,9 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         </button>
       </div>
 
-      {/* RIGHT TOUCH ZONE: AIM VIRTUAL JOYSTICK */}
-      <div
-        id="zone-aim"
-        ref={rightZoneRef}
-        className="absolute right-0 bottom-0 w-[28vw] h-[45vh] pointer-events-auto touch-none"
-        onTouchStart={handleRightStart}
-        onTouchMove={handleRightMove}
-        onTouchEnd={handleRightEnd}
-        onTouchCancel={handleRightEnd}
-        onMouseDown={handleRightStart}
-        onMouseMove={handleRightMove}
-        onMouseUp={handleRightEnd}
-      >
-        {/* Joystick Visual Indicator */}
-        <div
-          className="absolute transition-opacity duration-200 pointer-events-none"
-          style={{
-            right: rightActive ? `calc(33vw - ${rightOrigin.x}px)` : '80px',
-            top: rightActive ? `${rightOrigin.y}px` : 'calc(50vh - 80px)',
-            transform: 'translate(50%, -50%)',
-            opacity: rightActive ? 0.95 : 0.6,
-          }}
-        >
-          {/* Base Ring (Vibrant Translucent Red) */}
-          <div className="w-28 h-28 rounded-full border-3 border-rose-500/80 bg-rose-950/25 backdrop-blur-md flex items-center justify-center shadow-lg">
-            <div className="w-16 h-16 rounded-full border border-rose-500/30" />
-            <div
-              className="absolute w-14 h-14 rounded-full bg-red-600/45 border-2 border-red-300 shadow-md flex items-center justify-center transition-transform duration-75"
-              style={{
-                transform: `translate(${rightThumb.x}px, ${rightThumb.y}px)`,
-              }}
-            >
-              <Crosshair className="w-7 h-7 text-white" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* MELEE PUNCH BUTTON - EXACT POSITION FROM SCREENSHOT (BOTTOM-RIGHT ADJACENT TO AIM JOYSTICK) */}
+      {/* MELEE PUNCH BUTTON - ADJACENT TO AIM JOYSTICK */}
       <div 
-        className="absolute pointer-events-auto z-40"
+        className="absolute pointer-events-auto z-50"
         style={{ bottom: `${controlLayout.meleeBtn.bottom}px`, right: `${controlLayout.meleeBtn.right}px` }}
       >
         <button
@@ -468,11 +511,13 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
             meleePressed ? 'bg-amber-600/80 scale-95' : 'bg-neutral-900/60 hover:bg-neutral-900/80'
           }`}
           onTouchStart={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             setMeleePressed(true);
             engine?.meleePlayer();
           }}
           onTouchEnd={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             setMeleePressed(false);
           }}
@@ -493,7 +538,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
       {/* DEDICATED SHOOT / FIRE BUTTON (زر الضرب المنفصل للطلق اليدوي أو الإضافي) */}
       <div 
-        className="absolute pointer-events-auto z-40"
+        className="absolute pointer-events-auto z-50"
         style={{ bottom: `${controlLayout.shootBtn.bottom}px`, right: `${controlLayout.shootBtn.right}px` }}
       >
         <button
@@ -506,14 +551,17 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
               : 'bg-rose-600 border-amber-300 text-white animate-pulse hover:bg-rose-500'
           }`}
           onTouchStart={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             handleShootStart(e);
           }}
           onTouchEnd={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             handleShootEnd(e);
           }}
           onTouchCancel={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             handleShootEnd(e);
           }}

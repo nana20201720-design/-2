@@ -96,9 +96,9 @@ export const DEFAULT_SETTINGS: TacticalSettings = {
   isLandscapeMode: false,
   killFeedIconStyle: 'classic',
   controlLayout: {
-    grenadeBtn: { bottom: 200, left: 35 },
-    meleeBtn: { bottom: 200, right: 35 },
-    shootBtn: { bottom: 310, right: 35 },
+    grenadeBtn: { bottom: 100, left: 40 },
+    meleeBtn: { bottom: 100, right: 40 },
+    shootBtn: { bottom: 180, right: 40 },
   },
   isDraggingControls: false,
 };
@@ -116,8 +116,9 @@ class SettingsManager {
       const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (stored) {
         const settings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
-        // Force reset layout if it's the old overlapping one (bottom < 50)
-        if (settings.controlLayout.shootBtn.bottom < 50 || settings.controlLayout.meleeBtn.bottom < 50) {
+        // FORCE RESET for this specific update to fix the "entering each other" glitch
+        // We'll reset if the version is old or if we detect the previous 310/220 values
+        if (settings.controlLayout.shootBtn.bottom >= 220 || settings.controlLayout.shootBtn.bottom < 50) {
           settings.controlLayout = { ...DEFAULT_SETTINGS.controlLayout };
         }
         return settings;
