@@ -284,6 +284,12 @@ export interface CharacterState {
   muzzleFlashTimer: number;
   hitFlinchTimer: number;
   
+  // Network Sync (Interpolation)
+  targetX?: number;
+  targetY?: number;
+  targetAimAngle?: number;
+  lastSyncTime?: number;
+  
   // Stats
   kills: number;
   deaths: number;

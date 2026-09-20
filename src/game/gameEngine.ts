@@ -260,13 +260,15 @@ export class GameEngine {
       let matchPlayer = this.players.find((p) => p.id === remote.uid || p.name === remote.name);
 
       if (matchPlayer && !matchPlayer.isPlayer) {
-        // Smooth linear interpolation (Lerp) for position and velocities
-        matchPlayer.x += (remote.x - matchPlayer.x) * 0.4;
-        matchPlayer.y += (remote.y - matchPlayer.y) * 0.4;
+        // Set network sync targets for frame-by-frame interpolation
+        matchPlayer.targetX = remote.x;
+        matchPlayer.targetY = remote.y;
+        matchPlayer.targetAimAngle = remote.aimAngle;
+        matchPlayer.lastSyncTime = Date.now();
+
+        // Update non-positional state immediately
         matchPlayer.vx = remote.vx;
         matchPlayer.vy = remote.vy;
-        matchPlayer.aimAngle = remote.aimAngle;
-        matchPlayer.facingRight = Math.cos(remote.aimAngle) >= 0;
         matchPlayer.health = remote.health;
         matchPlayer.fuel = remote.fuel;
         matchPlayer.isJetpacking = remote.isJetpacking;
@@ -283,7 +285,7 @@ export class GameEngine {
           }
           matchPlayer.currentWeaponIndex = matchPlayer.weapons.indexOf(wType);
         }
-      } else if (!matchPlayer && this.players.length < 8) {
+      } else if (!matchPlayer && this.players.length < 12) {
         // Dynamically join new remote player into arena
         const newRemote = this.createCharacter(
           remote.uid,
@@ -294,6 +296,8 @@ export class GameEngine {
         );
         newRemote.x = remote.x;
         newRemote.y = remote.y;
+        newRemote.targetX = remote.x;
+        newRemote.targetY = remote.y;
         newRemote.health = remote.health;
         this.players.push(newRemote);
       }
@@ -1199,22 +1203,52 @@ export class GameEngine {
           this.fireWeapon(p);
         }
       } else {
-        // Other Players in FFA arena:
-        // If controlled by active physical gamepad, gamepad inputs apply.
-        // Otherwise, autonomous Mini Militia combat AI drives the soldier!
-        const hasGamepad = this.isGamepadActive(i);
-        if (!hasGamepad) {
-          this.botAI.updateBot(
-            p,
-            this.players,
-            this.map,
-            dt,
-            (bot) => this.fireWeapon(bot),
-            (bot) => this.reloadCharacter(bot),
-            (bot) => this.switchCharacterWeapon(bot),
-            (bot) => this.meleeCharacter(bot),
-            (bot) => this.throwCharacterGrenade(bot)
-          );
+        // Other Players (Bots or Remote Humans):
+        
+        // --- SMOOTH NETWORK INTERPOLATION ---
+        if (p.targetX !== undefined && p.targetY !== undefined) {
+          // If the gap is huge (teleport), jump directly, otherwise glide
+          const dist = Math.hypot(p.targetX - p.x, p.targetY - p.y);
+          if (dist > 450) {
+            p.x = p.targetX;
+            p.y = p.targetY;
+          } else {
+            // Glide towards target position (smoothing constant 0.15 per frame at 60fps)
+            // Using a time-independent smoothing factor
+            const lerpFactor = Math.min(1.0, dt * 15.0);
+            p.x += (p.targetX - p.x) * lerpFactor;
+            p.y += (p.targetY - p.y) * lerpFactor;
+          }
+
+          if (p.targetAimAngle !== undefined) {
+            const angleDiff = p.targetAimAngle - p.aimAngle;
+            // Shortest path interpolation for angles
+            const shortestDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+            p.aimAngle += shortestDiff * Math.min(1.0, dt * 20.0);
+            p.facingRight = Math.cos(p.aimAngle) >= 0;
+          }
+          
+          // For remote players, we bypass normal physics integration to avoid double-movement
+          // but we still update animations based on velocities
+          if (Math.abs(p.vx) > 10 && p.isGrounded) {
+             p.walkCycle += dt * 16;
+          }
+        } else {
+          // Autonomous Mini Militia combat AI drives the bot
+          const hasGamepad = this.isGamepadActive(i);
+          if (!hasGamepad) {
+            this.botAI.updateBot(
+              p,
+              this.players,
+              this.map,
+              dt,
+              (bot) => this.fireWeapon(bot),
+              (bot) => this.reloadCharacter(bot),
+              (bot) => this.switchCharacterWeapon(bot),
+              (bot) => this.meleeCharacter(bot),
+              (bot) => this.throwCharacterGrenade(bot)
+            );
+          }
         }
 
         // Smooth jetpack power spooling for bots / other players
@@ -1265,7 +1299,23 @@ export class GameEngine {
       }
 
       // Physics integration & Map Collision
-      this.integratePhysics(p, dt);
+      // Skip physics integration for remote interpolated players to avoid fighting with network state
+      if (p.isPlayer || p.targetX === undefined) {
+        this.integratePhysics(p, dt);
+      } else {
+        // Limited physics update for remote players (only for timers/recoil, no motion)
+        this.updateTimersOnly(p, dt);
+      }
+    }
+  }
+
+  private updateTimersOnly(char: CharacterState, dt: number) {
+    if (char.recoilOffset > 0) char.recoilOffset = Math.max(0, char.recoilOffset - 60 * dt);
+    if (char.muzzleFlashTimer > 0) char.muzzleFlashTimer -= dt;
+    if (char.hitFlinchTimer > 0) char.hitFlinchTimer -= dt;
+    if (char.meleeTimer && char.meleeTimer > 0) char.meleeTimer -= dt;
+    if (char.weaponSwitchTimer && char.weaponSwitchTimer > 0) {
+      char.weaponSwitchTimer = Math.max(0, char.weaponSwitchTimer - dt);
     }
   }
 
