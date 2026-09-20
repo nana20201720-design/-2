@@ -46,27 +46,44 @@ export const cloudSyncManager = {
     try {
       const userRef = doc(db, 'users', uid);
       const snap = await getDoc(userRef);
+      const cloudData = snap.exists() ? (snap.data() as CloudUserData) : null;
+      const localData = this.loadLocal(uid);
 
-      if (snap.exists()) {
-        const data = snap.data() as CloudUserData;
-        if (data.stats) {
-          statsManager.saveStats(data.stats);
+      let winner: CloudUserData | null = null;
+
+      if (cloudData && localData) {
+        // مقارنة البيانات
+        if ((localData.updatedAt || 0) > (cloudData.updatedAt || 0)) {
+          console.log('🛡️ البيانات المحلية أحدث، سيتم تحديث السحابة.');
+          await this.syncToCloud(localData.customization, true);
+          winner = localData;
+        } else {
+          winner = cloudData;
         }
-        if (data.dailyMissions) {
-          missionsManager.saveMissions(data.dailyMissions);
-        }
-        return data;
+      } else if (localData) {
+        winner = localData;
+      } else if (cloudData) {
+        winner = cloudData;
       } else {
-        // Save initial local data to cloud for new user
+        // مستخدم جديد تماماً
         await this.syncToCloud(undefined, true);
+        return null;
+      }
+
+      if (winner) {
+        if (winner.stats) statsManager.saveStats(winner.stats);
+        if (winner.dailyMissions) missionsManager.saveMissions(winner.dailyMissions);
+        return winner;
       }
     } catch (e) {
       if (isQuotaError(e)) {
-        console.warn('Firestore Quota Exceeded (Daily Limit). Data will be local-only until reset.');
+        console.warn('Firestore Quota Exceeded. Using local data.');
+        return this.loadLocal(uid);
       } else if (isOfflineError(e)) {
-        console.warn('Device is offline. Running in local mode.');
+        console.warn('Device is offline. Using local data.');
+        return this.loadLocal(uid);
       } else {
-        console.error('Failed to load user data from cloud:', e);
+        console.error('Failed to load user data:', e);
       }
     }
     return null;
@@ -109,6 +126,9 @@ export const cloudSyncManager = {
         updatedAt: Date.now(),
       };
 
+      // 💾 حفظ محلي كنسخة احتياطية فورية
+      localStorage.setItem(`user_data_${uid}`, JSON.stringify(payload));
+
       const userRef = doc(db, 'users', uid);
       await setDoc(userRef, payload, { merge: true });
       this.lastSyncTime = now;
@@ -123,5 +143,10 @@ export const cloudSyncManager = {
       }
       return false;
     }
+  },
+
+  loadLocal(uid: string): CloudUserData | null {
+    const data = localStorage.getItem(`user_data_${uid}`);
+    return data ? JSON.parse(data) : null;
   },
 };

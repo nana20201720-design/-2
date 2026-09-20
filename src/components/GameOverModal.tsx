@@ -26,6 +26,7 @@ import * as d3 from 'd3';
 import { GameMode } from '../types';
 import { soundManager } from '../audio/soundManager';
 import { haptics } from '../utils/haptics';
+import { ThreeSoldierCanvas } from './ThreeSoldierCanvas';
 
 export interface ScoreboardPlayerStats {
   id: string;
@@ -319,6 +320,36 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             {copiedToast ? <CheckCircle2 size={15} className="text-emerald-400" /> : <Copy size={15} />}
             <span className="hidden sm:inline">{copiedToast ? 'تم النسخ!' : 'نسخ الملخص'}</span>
           </button>
+        </div>
+
+        {/* 3D MVP Commando Showcase Podium */}
+        <div className="bg-gradient-to-r from-[#0d1f12] via-[#122818] to-[#0d1f12] rounded-2xl border border-emerald-500/30 p-2.5 flex items-center justify-between shadow-inner">
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 rounded-xl bg-black/40 border border-emerald-500/40 overflow-hidden relative shadow-md">
+              <ThreeSoldierCanvas
+                camoColor={playersList[0]?.camoColor || '#365314'}
+                weapon="rifle"
+                autoRotate={true}
+                interactive={false}
+                showPedestal={false}
+                height={64}
+              />
+            </div>
+            <div>
+              <div className="text-[10px] font-black text-emerald-400 flex items-center gap-1">
+                <Sparkles size={12} />
+                <span>بطل المعركة (MVP): {mvpName || playersList[0]?.name || 'المحارب'}</span>
+              </div>
+              <div className="text-xs font-black text-white">
+                {mvpKills !== undefined ? mvpKills : playersList[0]?.kills || kills} قتيل • أداء بطولي
+              </div>
+              <div className="text-[10px] text-gray-400">نموذج الجندي 3D تفاعلي بالكامل</div>
+            </div>
+          </div>
+          <div className="text-left font-mono">
+            <div className="text-xs font-black text-amber-400">+{matchXP} XP</div>
+            <div className="text-[10px] text-gray-400">خبرة مستحقة</div>
+          </div>
         </div>
 
         {/* Navigation Tabs (جدول الترتيب | التحليل البياني | الأوسمة والإنجازات) */}

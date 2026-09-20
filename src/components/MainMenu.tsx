@@ -44,114 +44,63 @@ import { achievementsManager, ACHIEVEMENTS_LIST } from '../utils/achievementsMan
 import { cloudSyncManager } from '../utils/cloudSyncManager';
 import { FirebaseUser, db, doc, getDoc, setDoc } from '../lib/firebase';
 
-const CartoonWarBackground: React.FC = () => {
+const MilitaryArenaBackground: React.FC = () => {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden select-none z-0">
       <style>{`
-        @keyframes floatCloud {
-          0% { transform: translateX(-120%); }
-          100% { transform: translateX(120vw); }
+        @keyframes slowZoom {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
         }
-        @keyframes floatSoldier {
-          0% { transform: translateY(110vh) translateX(0) scale(0.65) rotate(5deg); }
-          50% { transform: translateY(30vh) translateX(30px) scale(0.7) rotate(-5deg); }
-          100% { transform: translateY(-20vh) translateX(-10px) scale(0.6) rotate(10deg); }
+        @keyframes drift {
+          0% { transform: translate(0, 0); }
+          50% { transform: translate(-10px, 10px); }
+          100% { transform: translate(0, 0); }
         }
-        @keyframes tracerBullet1 {
-          0% { transform: translate(-100px, 100vh) rotate(-35deg); opacity: 0; }
-          10% { opacity: 1; }
-          40% { transform: translate(120vw, -20vh) rotate(-35deg); opacity: 0; }
-          100% { transform: translate(120vw, -20vh) rotate(-35deg); opacity: 0; }
-        }
-        @keyframes tracerBullet2 {
-          0% { transform: translate(100vw, 100vh) rotate(35deg); opacity: 0; }
-          15% { opacity: 1; }
-          45% { transform: translate(-100px, -20vh) rotate(35deg); opacity: 0; }
-          100% { transform: translate(-100px, -20vh) rotate(35deg); opacity: 0; }
-        }
-        @keyframes riseEmber {
-          0% { transform: translateY(105vh) translateX(0) scale(1); opacity: 0; }
-          30% { opacity: 0.7; }
-          100% { transform: translateY(-10vh) translateX(50px) scale(0.3); opacity: 0; }
+        @keyframes pulseGlow {
+          0% { opacity: 0.3; }
+          50% { opacity: 0.6; }
+          100% { opacity: 0.3; }
         }
       `}</style>
 
-      {/* Parallax sky gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#101f18] via-[#0b1712] to-[#040806]" />
-
-      {/* Cartoon clouds */}
-      <div 
-        className="absolute top-8 left-0 text-6xl text-white/5 font-sans" 
-        style={{ animation: 'floatCloud 80s linear infinite', animationDelay: '0s' }}
-      >
-        ☁️
-      </div>
-      <div 
-        className="absolute top-24 left-0 text-7xl text-white/5 font-sans" 
-        style={{ animation: 'floatCloud 110s linear infinite', animationDelay: '-30s' }}
-      >
-        ☁️
-      </div>
-      <div 
-        className="absolute top-16 left-0 text-5xl text-white/5 font-sans" 
-        style={{ animation: 'floatCloud 95s linear infinite', animationDelay: '-15s' }}
-      >
-        ☁️
+      {/* Main Background Image */}
+      <div className="absolute inset-0 z-0">
+        <img 
+          src="/images/military_arena_bg_1789831118619.jpg" 
+          alt="Background" 
+          className="w-full h-full object-cover opacity-60"
+          style={{ animation: 'slowZoom 30s ease-in-out infinite' }}
+          onError={(e) => {
+            (e.target as any).src = 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070&auto=format&fit=crop';
+          }}
+        />
+        {/* Dark Vignette Overlay */}
+        <div className="absolute inset-0 bg-radial-gradient from-transparent via-neutral-950/40 to-neutral-950" />
+        <div className="absolute inset-0 bg-gradient-to-b from-neutral-950/20 via-transparent to-neutral-950/80" />
       </div>
 
-      {/* Occasional tracer laser shots */}
-      <div 
-        className="absolute w-28 h-0.5 bg-gradient-to-r from-transparent via-red-500 to-amber-400 rounded-full blur-[1px]"
-        style={{ animation: 'tracerBullet1 6s cubic-bezier(0.1, 0.8, 0.3, 1) infinite', animationDelay: '0.5s' }}
-      />
-      <div 
-        className="absolute w-24 h-0.5 bg-gradient-to-r from-transparent via-yellow-500 to-orange-400 rounded-full blur-[1px]"
-        style={{ animation: 'tracerBullet2 8s cubic-bezier(0.1, 0.8, 0.3, 1) infinite', animationDelay: '3.2s' }}
-      />
-      <div 
-        className="absolute w-32 h-0.5 bg-gradient-to-r from-transparent via-green-500 to-emerald-400 rounded-full blur-[1px]"
-        style={{ animation: 'tracerBullet1 9s cubic-bezier(0.1, 0.8, 0.3, 1) infinite', animationDelay: '1.8s' }}
-      />
-
-      {/* Floating Jetpack cartoon soldiers in silhouette */}
-      <div 
-        className="absolute text-5xl opacity-10 select-none"
-        style={{ animation: 'floatSoldier 18s linear infinite', left: '15%', animationDelay: '1s' }}
-      >
-        🧑‍🚀🚀
-      </div>
-      <div 
-        className="absolute text-4xl opacity-15 select-none"
-        style={{ animation: 'floatSoldier 24s linear infinite', left: '75%', animationDelay: '-8s' }}
-      >
-        🧑‍✈️🚀
+      {/* Atmospheric Particles / Embers */}
+      <div className="absolute inset-0 z-1">
+        {[...Array(12)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-1 h-1 bg-amber-500/40 rounded-full blur-[1px]"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animation: `pulseGlow ${2 + Math.random() * 3}s ease-in-out infinite`,
+              animationDelay: `${Math.random() * 5}s`
+            }}
+          />
+        ))}
       </div>
 
-      {/* Rising embers and sparks from bottom */}
-      <div 
-        className="absolute w-1.5 h-1.5 bg-amber-500 rounded-full blur-[0.5px]"
-        style={{ left: '10%', animation: 'riseEmber 12s linear infinite', animationDelay: '0.2s' }}
-      />
-      <div 
-        className="absolute w-1 h-1 bg-orange-400 rounded-full blur-[0.5px]"
-        style={{ left: '30%', animation: 'riseEmber 10s linear infinite', animationDelay: '2.5s' }}
-      />
-      <div 
-        className="absolute w-2 h-2 bg-yellow-500 rounded-full blur-[0.5px]"
-        style={{ left: '55%', animation: 'riseEmber 14s linear infinite', animationDelay: '1.1s' }}
-      />
-      <div 
-        className="absolute w-1.5 h-1.5 bg-red-500 rounded-full blur-[0.5px]"
-        style={{ left: '80%', animation: 'riseEmber 11s linear infinite', animationDelay: '4.7s' }}
-      />
-      <div 
-        className="absolute w-1 h-1 bg-amber-400 rounded-full blur-[0.5px]"
-        style={{ left: '95%', animation: 'riseEmber 15s linear infinite', animationDelay: '3.3s' }}
-      />
-
-      {/* Bottom Cartoon Bunkers / Terrain silhouettes */}
-      <div className="absolute bottom-0 inset-x-0 h-28 bg-gradient-to-t from-neutral-950 to-transparent opacity-60 flex items-end">
-        <div className="w-full h-8 bg-neutral-950/80 rounded-t-[100px] blur-[2px] transform scale-y-75 translate-y-2" />
+      {/* Light Sweeps */}
+      <div className="absolute inset-0 z-2 opacity-20">
+        <div className="absolute top-0 -left-[10%] w-[120%] h-32 bg-amber-500/10 blur-[60px] rotate-[15deg] transform -translate-y-1/2" />
+        <div className="absolute bottom-0 -right-[10%] w-[120%] h-32 bg-emerald-500/10 blur-[60px] -rotate-[15deg] transform translate-y-1/2" />
       </div>
     </div>
   );
@@ -333,317 +282,79 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   };
 
   return (
-    <div className="absolute inset-0 z-40 flex flex-col p-4 md:p-6 overflow-y-auto select-none border-4 border-neutral-700 shadow-[inset_0_0_80px_rgba(0,0,0,0.8)] scrollbar-thin">
-      <CartoonWarBackground />
+    <div className="absolute inset-0 z-40 flex flex-row p-4 md:p-6 overflow-hidden select-none border-4 border-neutral-700 shadow-[inset_0_0_80px_rgba(0,0,0,0.8)]">
+      <MilitaryArenaBackground />
       <div className="absolute inset-0 bg-neutral-950/20 pointer-events-none z-5" />
 
-      <div className="relative z-10 flex flex-col w-full h-auto">
-        <InviteNotificationBanner
-          currentUser={currentUser}
-          onAcceptJoinRoom={(roomCode) => {
-            setTargetRoomCode(roomCode);
-            setActiveTab('rooms');
-          }}
-        />
-
-      {/* HEADER: Title Banner with cartoon military style */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-3 border-b border-neutral-800 pb-3 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 via-yellow-500 to-orange-500 p-0.5 shadow-lg shadow-amber-500/20 flex items-center justify-center">
-            <Flame className="w-6 h-6 text-neutral-950 fill-neutral-950" />
-          </div>
-          <div>
-            <h1 className="text-xl md:text-2xl font-black tracking-tight text-white flex items-center gap-2">
-              <span>MINI BATTLE ARENA</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                2D ARENA
-              </span>
-            </h1>
-            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 mt-0.5">
-              <p className="text-[10px] md:text-xs text-neutral-400 font-medium">
-                معركة الساحة المصغرة - مستوحاة من أسلوب ميني مليشيا الكلاسيكي
-              </p>
-              <div className="flex items-center gap-1.5">
-                <span className="hidden md:inline text-neutral-600">•</span>
-                <div className={`text-[9px] px-1.5 py-0.5 rounded-full font-black flex items-center gap-1 select-none ${
-                  isOnline 
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20 animate-pulse'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                  <span>{isOnline ? 'أونلاين متصل 🟢' : 'أوفلاين محلي (مع البوتات) 🔴'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* Side Navigation for better landscape use */}
+      <div className="relative z-10 w-48 md:w-64 flex flex-col gap-2 shrink-0 border-r border-neutral-800 pr-4 overflow-y-auto scrollbar-thin">
+        {/* Title */}
+        <div className="text-center py-4 mb-2">
+            <h1 className="text-xl font-black text-white tracking-tighter">MINI ARENA</h1>
+            <span className="text-[9px] text-amber-500 font-bold tracking-widest uppercase">2D COMBAT</span>
         </div>
-
-        {/* Tab Navigation & Install / Share / Cloud Buttons */}
-        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-center">
-          {/* Gold Coins Currency Display */}
-          <div
-            className="px-2.5 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[10px] font-black text-amber-400 flex items-center gap-1.5 shadow-sm shadow-amber-500/5 select-none hover:bg-amber-500/20 transition-all cursor-pointer"
-            title="رصيد الذهب والعملات الخاص بك"
-          >
-            <span className="text-xs animate-bounce">🪙</span>
-            <span>{stats.coins !== undefined ? stats.coins.toLocaleString() : "100"} عملة</span>
-          </div>
-
-          {/* Cloud Auth / Save Progress button */}
-          <button
-            onClick={() => setIsAuthModalOpen(true)}
-            className={`px-2.5 py-1.5 border rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all ${
-              currentUser
-                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20'
-                : 'bg-neutral-800/80 border-neutral-700/80 text-amber-400 hover:bg-neutral-800'
-            }`}
-            title="تسجيل الدخول وحفظ التقدم سحابياً"
-          >
-            <Cloud className={`w-3 h-3 ${currentUser ? 'text-emerald-400' : 'text-amber-400'}`} />
-            <span>{currentUser ? 'محفوظ سحابياً ✓' : 'حفظ التقدم ☁️'}</span>
-          </button>
-
-          {/* Developer Control Panel Button */}
-          {currentUser?.email === 'nana20201720@gmail.com' && (
-            <button
-              onClick={handleOpenAdminPanel}
-              className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-neutral-950 font-black rounded-xl text-[10px] flex items-center gap-1 shadow-md hover:from-amber-400 hover:to-yellow-300 transition-all"
-              title="لوحة إدارة التحديثات والإصدارات 👑"
+        
+        {/* Navigation Tabs */}
+        {[
+            { id: 'dashboard', label: 'الرئيسية', icon: Shield },
+            { id: 'play', label: 'القتال السريع', icon: Play },
+            { id: 'rooms', label: 'السيرفرات', icon: Globe },
+            { id: 'leaderboard', label: 'الصدارة', icon: Crown },
+            { id: 'friends', label: 'الأصدقاء', icon: Users },
+            { id: 'missions', label: 'المهام', icon: Target },
+            { id: 'profile', label: 'الملف الشخصي', icon: User },
+            { id: 'custom', label: 'تخصيص', icon: Palette },
+            { id: 'settings', label: 'الإعدادات', icon: SettingsIcon },
+        ].map(tab => (
+            <button 
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-3 w-full p-3 rounded-xl text-xs font-bold transition-all ${
+                    activeTab === tab.id ? 'bg-amber-500 text-neutral-950 font-black' : 'text-neutral-400 hover:bg-neutral-800'
+                }`}
             >
-              <Crown className="w-3 h-3 fill-current" />
-              <span>لوحة المطور 👑</span>
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
             </button>
-          )}
-
-          <button
-            onClick={handleShareGame}
-            className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-neutral-950 font-black rounded-xl text-[10px] flex items-center gap-1 shadow-md transition-all active:scale-95"
-            title="مشاركة رابط اللعبة مع أصدقائك"
-          >
-            {copiedShareLink ? (
-              <>
-                <Check className="w-3 stroke-[3] text-emerald-950" />
-                <span>تم نسخ الرابط! 📋</span>
-              </>
-            ) : (
-              <>
-                <Share2 className="w-3 stroke-[2.5]" />
-                <span>مشاركة 🔗</span>
-              </>
-            )}
-          </button>
-          <PWAInstallButton />
-
-          <button
-            onClick={() => setActiveTab('help')}
-            className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all ${
-              activeTab === 'help'
-                ? 'bg-amber-500 text-neutral-950 font-black'
-                : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
-            }`}
-          >
-            <HelpCircle className="w-3 h-3" />
-            <span>تعليمات ❓</span>
-          </button>
-        </div>
+        ))}
       </div>
 
-      {/* MAIN NAVIGATION TAB BAR - Separate full-width scrollable container */}
-      <div className="w-full py-1.5 shrink-0 border-b border-neutral-800/60 overflow-x-auto scrollbar-none">
-        <div className="flex items-center gap-1.5 justify-start md:justify-center min-w-max pb-1">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'dashboard'
-                ? 'bg-amber-500 text-neutral-950 shadow-md font-black'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <Shield className="w-3.5 h-3.5" />
-            <span>لوحة التحكم 📊</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('play')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'play'
-                ? 'bg-amber-500 text-neutral-950 shadow-md font-black'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <Play className="w-3.5 h-3.5" />
-            <span>القتال السريع ⚔️</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('rooms')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'rooms'
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-neutral-950 shadow-md font-black'
-                : 'text-amber-400 hover:text-white bg-amber-500/10 border border-amber-500/30'
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5 text-amber-400" />
-            <span>السيرفرات والغرف (1v1, 2v2) 🌐</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('leaderboard')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap relative ${
-              activeTab === 'leaderboard'
-                ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-neutral-950 shadow-md font-black'
-                : 'text-amber-400 hover:text-white'
-            }`}
-          >
-            <Crown className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />
-            <span>لوحة الصدارة 👑</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('achievements')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap relative ${
-              activeTab === 'achievements'
-                ? 'bg-amber-500 text-neutral-950 shadow-md font-black'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <Trophy className="w-3.5 h-3.5 text-amber-400" />
-            <span>الإنجازات 🏆</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('missions')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap relative ${
-              activeTab === 'missions'
-                ? 'bg-amber-500 text-neutral-950 shadow-md font-black'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <Target className="w-3.5 h-3.5 text-amber-400" />
-            <span>المهام اليومية 🎯</span>
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping absolute top-1 left-1" />
-          </button>
-
-          <button
-            onClick={() => setActiveTab('friends')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'friends'
-                ? 'bg-amber-500 text-neutral-950 shadow-md font-black'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>الأصدقاء 👥</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setStats(statsManager.getStats());
-              setActiveTab('profile');
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'profile'
-                ? 'bg-amber-500 text-neutral-950 shadow-md font-black'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>الملف الشخصي 👤</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('custom')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'custom'
-                ? 'bg-amber-500 text-neutral-950 shadow-md font-black'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <Palette className="w-3.5 h-3.5" />
-            <span>تخصيص الجندي 🎨</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              activeTab === 'settings'
-                ? 'bg-amber-500 text-neutral-950 shadow-md font-black'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            <SettingsIcon className="w-3.5 h-3.5" />
-            <span>الإعدادات ⚙️</span>
-          </button>
+      <div className="relative z-10 flex-1 flex flex-col overflow-y-auto p-4">
+        {/* Top bar for status */}
+        <div className="flex justify-between items-center mb-4 bg-black/40 p-3 rounded-2xl border border-neutral-800">
+           <div className="flex items-center gap-2 text-xs font-bold text-neutral-300">
+              <span className="text-amber-500">🪙</span> {stats.coins}
+           </div>
+           <PWAInstallButton />
         </div>
-      </div>
-
-      {/* CONTENT BODY */}
-      <div className="w-full py-4 px-1 md:px-4 flex flex-col items-center justify-start h-auto">
-        {/* TAB: DASHBOARD WITH 4 CLEAR ZONES */}
-        {activeTab === 'dashboard' && (
-          <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-5 pb-6">
-            {/* ZONE 1: PLAY COMMAND CENTER (منطقة القتال) */}
-            <div className="bg-neutral-900/80 border-2 border-neutral-800 rounded-2xl p-5 flex flex-col justify-between backdrop-blur-md relative overflow-hidden group hover:border-amber-500/50 transition-all shadow-xl">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
-              <div>
-                <div className="flex items-center justify-between border-b border-neutral-800 pb-2.5 mb-4">
-                  <h3 className="text-sm md:text-base font-black text-amber-400 flex items-center gap-2">
-                    <Swords className="w-5 h-5 text-amber-500 animate-pulse" />
-                    <span>غرفة القيادة واللعب (Play Zone)</span>
-                  </h3>
-                  <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-full text-[10px] font-bold border border-amber-500/20">
-                    جاهز للموت ☠️
-                  </span>
-                </div>
-
-                <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
-                  احشد قواك وانطلق إلى خريطة "المخفر العسكري والكهوف"! اختر طور اللعب المفضل لديك وابدأ الحرب الآن مع الأصدقاء أو الخصوم الأذكياء.
-                </p>
-
-                {/* Game Mode Pickers */}
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  {[
-                    { id: 'deathmatch', name: 'قتال حر 💀', desc: 'كل لاعب لنفسه' },
-                    { id: 'team', name: 'قتال فرق 👥', desc: 'تعاون تكتيكي' },
-                    { id: 'survival', name: 'بقاء 🛡️', desc: 'مواجهة الأمواج' },
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => {
-                        setSelectedMode(m.id as GameMode);
-                        soundManager.playPistol();
-                      }}
-                      className={`p-2.5 rounded-xl border text-right transition-all flex flex-col justify-between ${
-                        selectedMode === m.id
-                          ? 'bg-amber-500/15 border-amber-400 text-amber-300 shadow-md shadow-amber-500/5'
-                          : 'bg-neutral-950/40 border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700'
-                      }`}
-                    >
-                      <span className="text-xs font-black">{m.name}</span>
-                      <span className="text-[9px] text-neutral-500 mt-1">{m.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pt-3 border-t border-neutral-800/60 mt-auto">
-                <button
-                  id="btn-dashboard-start"
-                  onClick={() => handleStart(selectedMode)}
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-orange-500 text-neutral-950 font-black text-xs md:text-sm shadow-lg shadow-amber-500/20 flex items-center justify-center gap-1.5 hover:opacity-95 active:scale-95 transition-all"
-                >
-                  <Play className="w-4 h-4 fill-neutral-950" />
-                  <span>انطلق الآن ⚔️</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('play')}
-                  className="px-3.5 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold transition-all border border-neutral-700/50"
-                  title="تخصيص الخيارات والإعدادات المتقدمة للمباراة"
-                >
-                  الخيارات المتقدمة ➔
-                </button>
-              </div>
-            </div>
+        
+        {/* Content Body */}
+        <div className="flex-1 w-full flex justify-center">
+            {activeTab === 'dashboard' && (
+                <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-5 pb-6">
+                    {/* ZONE 1: PLAY COMMAND CENTER */}
+                    <div className="bg-neutral-900/80 border-2 border-neutral-800 rounded-2xl p-5 flex flex-col justify-between backdrop-blur-md relative overflow-hidden group hover:border-amber-500/50 transition-all shadow-xl">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+                      <div>
+                        <div className="flex items-center justify-between border-b border-neutral-800 pb-2.5 mb-4">
+                          <h3 className="text-sm md:text-base font-black text-amber-400 flex items-center gap-2">
+                            <Swords className="w-5 h-5 text-amber-500 animate-pulse" />
+                            <span>غرفة القيادة واللعب (Play Zone)</span>
+                          </h3>
+                        </div>
+                        <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
+                          احشد قواك وانطلق إلى خريطة "المخفر العسكري والكهوف"! اختر طور اللعب المفضل لديك وابدأ الحرب الآن.
+                        </p>
+                        <button
+                          id="btn-dashboard-start"
+                          onClick={() => handleStart(selectedMode)}
+                          className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-orange-500 text-neutral-950 font-black text-xs md:text-sm shadow-lg shadow-amber-500/20 flex items-center justify-center gap-1.5 hover:opacity-95 active:scale-95 transition-all"
+                        >
+                          <Play className="w-4 h-4 fill-neutral-950" />
+                          <span>انطلق الآن ⚔️</span>
+                        </button>
+                      </div>
+                    </div>
 
             {/* ZONE 2: SOLDIER HEADQUARTERS & PROFILE (منطقة مظهر وملف الجندي) */}
             <div className="bg-neutral-900/80 border-2 border-neutral-800 rounded-2xl p-5 flex flex-col justify-between backdrop-blur-md relative overflow-hidden group hover:border-emerald-500/50 transition-all shadow-xl">

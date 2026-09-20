@@ -399,7 +399,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         <button
           id="btn-grenade"
           disabled={grenadesCount <= 0}
-          className={`w-14 h-14 rounded-full flex flex-col items-center justify-center border-2 border-white/80 shadow-2xl backdrop-blur-md transition-transform active:scale-90 relative cursor-pointer ${
+          className={`w-11 h-11 rounded-full flex flex-col items-center justify-center border-2 border-white/80 shadow-lg backdrop-blur-md transition-transform active:scale-90 relative cursor-pointer ${
             grenadesCount > 0
               ? 'bg-neutral-900/60 text-white hover:bg-neutral-900/80'
               : 'bg-neutral-900/20 text-neutral-400 opacity-40 cursor-not-allowed'
@@ -410,9 +410,9 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           }}
           title="رمي قنبلة (E / G)"
         >
-          <Bomb className="w-6 h-6 text-white" />
+          <Bomb className="w-5 h-5 text-white" />
           {grenadesCount > 0 && (
-            <span className="text-[10px] font-black text-white leading-none mt-0.5">
+            <span className="text-[9px] font-black text-white leading-none mt-0.5">
               {grenadesCount}
             </span>
           )}
@@ -464,7 +464,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
       >
         <button
           id="btn-melee"
-          className={`w-14 h-14 rounded-full flex items-center justify-center border-2 border-white/80 shadow-2xl backdrop-blur-md transition-transform active:scale-90 cursor-pointer ${
+          className={`w-11 h-11 rounded-full flex items-center justify-center border-2 border-white/80 shadow-lg backdrop-blur-md transition-transform active:scale-90 cursor-pointer ${
             meleePressed ? 'bg-amber-600/80 scale-95' : 'bg-neutral-900/60 hover:bg-neutral-900/80'
           }`}
           onTouchStart={(e) => {
@@ -487,7 +487,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           }}
           title="ضربة قريبة 👊 (F / V)"
         >
-          <span className="text-2xl select-none">👊</span>
+          <span className="text-xl select-none">👊</span>
         </button>
       </div>
 
@@ -498,11 +498,11 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
       >
         <button
           id="btn-shoot-manual"
-          className={`w-16 h-16 rounded-full border-3 flex flex-col items-center justify-center shadow-2xl backdrop-blur-md transition-transform active:scale-90 cursor-pointer ${
+          className={`w-14 h-14 rounded-full border-2 flex flex-col items-center justify-center shadow-lg backdrop-blur-md transition-transform active:scale-90 cursor-pointer ${
             shootPressed
               ? 'bg-rose-600 border-white scale-95 shadow-rose-600/50'
               : autoFire
-              ? 'bg-red-600/60 border-red-300 text-white hover:bg-red-600/80'
+              ? 'bg-red-600/50 border-red-300 text-white hover:bg-red-600/70'
               : 'bg-rose-600 border-amber-300 text-white animate-pulse hover:bg-rose-500'
           }`}
           onTouchStart={handleShootStart}
@@ -512,8 +512,8 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           onMouseUp={handleShootEnd}
           title="زر إطلاق النار المنفصل 🔫"
         >
-          <Flame className="w-7 h-7 text-white fill-current" />
-          <span className="text-[9px] font-black text-white uppercase tracking-tighter">
+          <Flame className="w-6 h-6 text-white fill-current" />
+          <span className="text-[8px] font-black text-white uppercase tracking-tighter">
             إطلاق
           </span>
         </button>
@@ -524,27 +524,27 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         {/* RELOAD BUTTON */}
         <button
           id="btn-reload"
-          className="w-12 h-12 rounded-full bg-neutral-900/60 border-2 border-white/80 text-white flex items-center justify-center shadow-xl backdrop-blur-md active:scale-90 hover:bg-neutral-900/80 cursor-pointer"
+          className="w-10 h-10 rounded-full bg-neutral-900/60 border-2 border-white/80 text-white flex items-center justify-center shadow-lg backdrop-blur-md active:scale-90 hover:bg-neutral-900/80 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation();
             engine?.reloadPlayer();
           }}
           title="تلقيم السلاح (R)"
         >
-          <RotateCcw className="w-5 h-5" />
+          <RotateCcw className="w-4 h-4" />
         </button>
 
         {/* DROP WEAPON BUTTON */}
         <button
           id="btn-drop-weapon"
-          className="w-12 h-12 rounded-full bg-neutral-900/60 border-2 border-amber-400/80 text-amber-300 flex items-center justify-center shadow-xl backdrop-blur-md active:scale-90 hover:bg-neutral-900/80 cursor-pointer"
+          className="w-10 h-10 rounded-full bg-neutral-900/60 border-2 border-amber-400/80 text-amber-300 flex items-center justify-center shadow-lg backdrop-blur-md active:scale-90 hover:bg-neutral-900/80 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation();
             engine?.dropPlayerWeapon();
           }}
           title="رمي السلاح (Z / X)"
         >
-          <ArrowDownToLine className="w-5 h-5 text-amber-300" />
+          <ArrowDownToLine className="w-4 h-4 text-amber-300" />
         </button>
       </div>
     </div>

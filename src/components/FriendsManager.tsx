@@ -288,8 +288,9 @@ export const FriendsManager: React.FC<FriendsManagerProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
               {friends.map((friend) => {
-                const isOnline = friend.status === 'online' || friend.status === 'in_game';
+                const isInStore = friend.status === 'in_store';
                 const isInGame = friend.status === 'in_game';
+                const isOnline = friend.status === 'online' || isInGame || isInStore;
 
                 return (
                   <div
@@ -309,6 +310,8 @@ export const FriendsManager: React.FC<FriendsManagerProps> = ({
                           className={`w-3.5 h-3.5 rounded-full absolute -bottom-0.5 -right-0.5 border-2 border-neutral-950 ${
                             isInGame
                               ? 'bg-amber-400 animate-pulse'
+                              : isInStore
+                              ? 'bg-cyan-400 animate-bounce'
                               : isOnline
                               ? 'bg-emerald-500'
                               : 'bg-neutral-600'
@@ -323,12 +326,14 @@ export const FriendsManager: React.FC<FriendsManagerProps> = ({
                             className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
                               isInGame
                                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                : isInStore
+                                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                                 : isOnline
                                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                                 : 'bg-neutral-800 text-neutral-400'
                             }`}
                           >
-                            {isInGame ? 'في مباراة 🎮' : isOnline ? 'متصل 🟢' : 'غير متصل ⚪'}
+                            {isInGame ? 'في مباراة 🎮' : isInStore ? 'في المتجر 🛒' : isOnline ? 'متصل 🟢' : 'غير متصل ⚪'}
                           </span>
                         </div>
 

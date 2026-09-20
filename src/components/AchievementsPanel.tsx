@@ -42,6 +42,8 @@ const getAchievementIconComponent = (iconName: string, className: string = 'w-5 
       return <Flame className={className} />;
     case 'Star':
       return <Star className={className} />;
+    case 'Target':
+      return <Target className={className} />;
     default:
       return <Award className={className} />;
   }

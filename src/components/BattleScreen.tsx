@@ -28,6 +28,7 @@ import { haptics } from '../utils/haptics';
 import BattleStatsDashboard from './BattleStatsDashboard';
 import { BattleArena } from './BattleArena';
 import { LiveSoldierCanvas } from './LiveSoldierCanvas';
+import { ThreeSoldierCanvas } from './ThreeSoldierCanvas';
 import { FriendsList } from './FriendsList';
 import { GameMode } from '../types';
 
@@ -73,6 +74,210 @@ export default function BattleScreen() {
   const [showLoadoutModal, setShowLoadoutModal] = useState(false);
   const [equippedPrimary, setEquippedPrimary] = useState('ديزرت إيجل الذهبي');
   const [equippedSecondary, setEquippedSecondary] = useState('قاذف صواريخ RPG-7');
+
+  // Daily Tactical Challenges State
+  interface DailyChallenge {
+    id: string;
+    title: string;
+    desc: string;
+    target: number;
+    current: number;
+    rewardCoins: number;
+    rewardGems: number;
+    completed: boolean;
+    claimed: boolean;
+    iconType: 'kills' | 'headshots' | 'survival' | 'grenade';
+  }
+
+  const [dailyChallenges, setDailyChallenges] = useState<DailyChallenge[]>(() => {
+    const saved = localStorage.getItem('mini_militia_daily_challenges_v1');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return [
+      {
+        id: 'dc1',
+        title: 'قناص الظل (Shadow Sniper)',
+        desc: 'تصفية 3 جنود نخبة باستخدام بندقية القنص القتالية.',
+        target: 3,
+        current: 1,
+        rewardCoins: 400,
+        rewardGems: 15,
+        completed: false,
+        claimed: false,
+        iconType: 'kills'
+      },
+      {
+        id: 'dc2',
+        title: 'قناص الرؤوس المزدوج (Headshot Specialist)',
+        desc: 'تنفيذ ضربتين قتالية في الرأس (Headshots) مباشرة.',
+        target: 2,
+        current: 0,
+        rewardCoins: 500,
+        rewardGems: 20,
+        completed: false,
+        claimed: false,
+        iconType: 'headshots'
+      },
+      {
+        id: 'dc3',
+        title: 'مدرع الصمود التكتيكي (Tactical Juggernaut)',
+        desc: 'البقاء حياً بنسبة صحة 100% لمدة 45 ثانية في القتال الحر.',
+        target: 1,
+        current: 0,
+        rewardCoins: 350,
+        rewardGems: 10,
+        completed: false,
+        claimed: false,
+        iconType: 'survival'
+      }
+    ];
+  });
+
+  const [challengeResetTime, setChallengeResetTime] = useState('');
+  const [lastMatchCompleted, setLastMatchCompleted] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('mini_militia_daily_challenges_v1', JSON.stringify(dailyChallenges));
+  }, [dailyChallenges]);
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date();
+      const midnight = new Date();
+      midnight.setHours(24, 0, 0, 0);
+      const diff = midnight.getTime() - now.getTime();
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      setChallengeResetTime(`${h}س و ${m}د`);
+    };
+    updateTimer();
+    const interval = setInterval(updateTimer, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Sync Daily Challenge progress when a match in the Arena is completed
+  useEffect(() => {
+    if (activeArenaMatch) {
+      setLastMatchCompleted(true);
+    } else if (lastMatchCompleted) {
+      setLastMatchCompleted(false);
+      setDailyChallenges((prev) => {
+        return prev.map(c => {
+          if (c.completed) return c;
+          
+          // Randomly advance progress as a reward for playing the match
+          const nextVal = Math.min(c.target, c.current + 1);
+          const completed = nextVal >= c.target;
+          
+          if (completed) {
+            triggerNotification(`🎉 اكتمل التحدي اليومي: "${c.title}"! جاهز للاستلام!`);
+          } else {
+            triggerNotification(`🎯 أحرزت تقدماً في التحدي اليومي: "${c.title}" (+1)`);
+          }
+          
+          return {
+            ...c,
+            current: nextVal,
+            completed,
+          };
+        });
+      });
+    }
+  }, [activeArenaMatch, lastMatchCompleted]);
+
+  const handleLaunchChallenge = (title: string) => {
+    soundManager.playRocketLaunch();
+    haptics.heavy();
+    setActiveArenaMatch({
+      mode: 'deathmatch',
+      isSpectator: false,
+      title: `تحدي تكتيكي: ${title}`,
+    });
+  };
+
+  const handleClaimChallengeReward = (id: string) => {
+    setDailyChallenges((prev) =>
+      prev.map((c) => {
+        if (c.id === id && c.completed && !c.claimed) {
+          soundManager.playVictory();
+          haptics.victory();
+          
+          const cur = settingsManager.getSettings();
+          settingsManager.updateSettings({
+            coins: cur.coins + c.rewardCoins,
+            gems: cur.gems + c.rewardGems,
+          });
+
+          triggerNotification(`🎁 تم استلام الجائزة: +${c.rewardCoins}🪙 و +${c.rewardGems}💎`);
+          return { ...c, claimed: true };
+        }
+        return c;
+      })
+    );
+  };
+
+  const handleReloadChallenges = () => {
+    const cur = settingsManager.getSettings();
+    if (cur.coins < 150) {
+      soundManager.playButtonClick();
+      triggerNotification('❌ رصيد الكوينز غير كافٍ! لإعادة تعيين التحديات تحتاج 150 🪙');
+      return;
+    }
+    
+    soundManager.playVictory();
+    haptics.heavy();
+    
+    settingsManager.updateSettings({
+      coins: cur.coins - 150,
+    });
+
+    const newChallenges: DailyChallenge[] = [
+      {
+        id: 'dc_new_1',
+        title: 'صياد الرشاشات (SMG Hunter)',
+        desc: 'تصفية 4 مقاتلين باستخدام الرشاش المزدوج (Dual Uzi).',
+        target: 4,
+        current: 0,
+        rewardCoins: 450,
+        rewardGems: 15,
+        completed: false,
+        claimed: false,
+        iconType: 'kills'
+      },
+      {
+        id: 'dc_new_2',
+        title: 'الضربة الجوية للقاذف (RPG Air Strike)',
+        desc: 'تدمير هدفين أثناء التحليق بحقيبة الطيران الجت باك.',
+        target: 2,
+        current: 0,
+        rewardCoins: 600,
+        rewardGems: 25,
+        completed: false,
+        claimed: false,
+        iconType: 'grenade'
+      },
+      {
+        id: 'dc_new_3',
+        title: 'بطل البقاء الأبدي (Infinite Survival)',
+        desc: 'الصمود لثلاث موجات متتالية دون دروع إضافية.',
+        target: 3,
+        current: 0,
+        rewardCoins: 500,
+        rewardGems: 20,
+        completed: false,
+        claimed: false,
+        iconType: 'survival'
+      }
+    ];
+
+    setDailyChallenges(newChallenges);
+    triggerNotification('🔄 تم شحن وتحديث قائمة التحديات التكتيكية اليومية بنجاح!');
+  };
 
   const combatants: CombatantProfile[] = [
     {
@@ -231,35 +436,36 @@ export default function BattleScreen() {
           </div>
         </div>
 
-        {/* Center Soldier Interactive Live Canvas reflecting custom loadout */}
+        {/* Center Soldier Interactive 3D WebGL Canvas reflecting custom loadout */}
         <div className="relative flex flex-col items-center justify-center my-2">
           <div className="absolute w-44 h-44 bg-cyan-400/15 rounded-full blur-2xl animate-pulse pointer-events-none" />
           
-          <div className="relative z-10 flex flex-col items-center cursor-grab active:cursor-grabbing">
+          <div className="relative z-10 w-full flex flex-col items-center">
             {(() => {
               const saved = settingsManager.getSettings();
               return (
                 <div
-                  onClick={(e) => {
-                    // Prevent triggering if dragging
-                    soundManager.playButtonClick();
-                    setShowLoadoutModal(true);
-                  }}
-                  title="انقر لتفقد وتعديل عتاد المحارب"
+                  className="w-full max-w-[300px] h-[260px] relative rounded-xl overflow-hidden cursor-grab active:cursor-grabbing border border-emerald-500/20 bg-black/40 shadow-inner"
+                  title="اسحب لتدوير المحارب 3D بزاوية 360 درجة"
                 >
-                  <LiveSoldierCanvas
+                  <ThreeSoldierCanvas
                     camoColor={getCamoHexFromSkinId(saved.equippedSkin)}
                     headgear={saved.equippedHeadgear || 'camo_helmet'}
                     bodyArmor={saved.equippedArmor || 'molle_vest'}
                     eyewear={saved.equippedEyewear || 'aviators'}
                     beard={saved.equippedBeard || 'stubble'}
                     jetpackStyle={saved.equippedJetpack || 'military_dual'}
-                    trailColor={saved.equippedTrail || 'neon_purple'}
+                    trailColor={saved.equippedTrail || '#06b6d4'}
                     weapon={saved.equippedPrimaryWeapon || 'sniper'}
-                    width={260}
                     height={260}
-                    onActionToast={(msg) => triggerNotification(msg)}
+                    interactive={true}
+                    autoRotate={true}
+                    showPedestal={true}
                   />
+                  <div className="absolute top-2 right-2 bg-black/70 px-2 py-0.5 rounded text-[10px] text-amber-300 font-bold border border-amber-500/30 flex items-center gap-1 pointer-events-none">
+                    <Sparkles size={10} className="text-amber-400" />
+                    <span>مجسم 3D حي</span>
+                  </div>
                 </div>
               );
             })()}
@@ -332,6 +538,128 @@ export default function BattleScreen() {
           <ArrowLeft size={16} />
         </div>
       </button>
+
+      {/* DAILY TACTICAL CHALLENGES BLOCK */}
+      <section className="bg-[#121c15] border-2 border-[#2b4430] rounded-2xl p-4 shadow-xl space-y-4">
+        <div className="flex items-center justify-between border-b border-[#233526] pb-3 flex-wrap gap-2">
+          <div className="space-y-0.5 text-right">
+            <h3 className="text-sm font-black text-white flex items-center gap-1.5">
+              <Target size={16} className="text-amber-500 animate-pulse" />
+              <span>مهام التحدي اليومي التكتيكية (Daily Challenges)</span>
+            </h3>
+            <p className="text-[10px] text-gray-400">
+              أكمل المهام لربح عملات تكتيكية وجواهر حصرية. تتجدد خلال: <span className="font-mono text-amber-400 font-bold">{challengeResetTime}</span>
+            </p>
+          </div>
+          <button
+            onClick={handleReloadChallenges}
+            className="px-2.5 py-1.5 rounded-lg bg-[#1a2d1f] hover:bg-amber-500 hover:text-black border border-amber-500/30 text-[10px] font-black text-amber-400 transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+            title="تحديث قائمة المهام بقيمة 150 عملة تكتيكية"
+          >
+            <RotateCcw size={12} />
+            <span>شحن مهام جديدة (150 🪙)</span>
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {dailyChallenges.map((c) => {
+            const percentage = Math.min(100, Math.round((c.current / c.target) * 100));
+            const isCompleted = c.completed;
+            const isClaimed = c.claimed;
+
+            return (
+              <div
+                key={c.id}
+                className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition-all ${
+                  isClaimed
+                    ? 'bg-[#101712]/30 border-[#1f2f22]/50 opacity-55'
+                    : isCompleted
+                    ? 'bg-[#1b3423] border-amber-500/50 shadow-lg shadow-amber-500/5'
+                    : 'bg-[#0a110c] border-[#223525]'
+                }`}
+              >
+                {/* Left side: Icon + Title & Desc */}
+                <div className="flex items-start gap-2.5 flex-1 min-w-0 text-right">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${
+                    isClaimed
+                      ? 'bg-neutral-900 border-neutral-800 text-neutral-600'
+                      : isCompleted
+                      ? 'bg-amber-500 text-black border-amber-400'
+                      : 'bg-[#121f15] border-emerald-500/30 text-emerald-400'
+                  }`}>
+                    {c.iconType === 'kills' && <Swords size={16} />}
+                    {c.iconType === 'headshots' && <Crosshair size={16} />}
+                    {c.iconType === 'survival' && <Shield size={16} />}
+                    {c.iconType === 'grenade' && <Flame size={16} />}
+                  </div>
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <span className={`text-xs font-black block truncate ${isCompleted && !isClaimed ? 'text-amber-300' : 'text-white'}`}>
+                      {c.title}
+                    </span>
+                    <p className="text-[10px] text-gray-400 leading-relaxed">
+                      {c.desc}
+                    </p>
+                    
+                    {/* Progress details & bar */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <div className="flex-1 h-2 bg-[#060b07] rounded-full overflow-hidden p-0.5 border border-[#1b2b1e]">
+                        <div
+                          className={`h-full rounded-full transition-all duration-1000 ${
+                            isCompleted ? 'bg-gradient-to-r from-amber-500 to-yellow-400' : 'bg-emerald-500'
+                          }`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-mono font-black text-gray-300 shrink-0">
+                        {c.current} / {c.target}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right side: Rewards & CTA */}
+                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 border-t sm:border-t-0 border-[#233526] pt-2.5 sm:pt-0">
+                  {/* Rewards Badge */}
+                  <div className="flex items-center gap-1.5 bg-[#070d08] px-2.5 py-1.5 rounded-lg border border-[#233526]">
+                    <span className="text-[10px] font-black text-amber-400 font-mono flex items-center gap-0.5">
+                      🪙 {c.rewardCoins}
+                    </span>
+                    <span className="text-gray-500 text-[9px] font-black">•</span>
+                    <span className="text-[10px] font-black text-cyan-400 font-mono flex items-center gap-0.5">
+                      💎 {c.rewardGems}
+                    </span>
+                  </div>
+
+                  {/* CTA Action button */}
+                  {isClaimed ? (
+                    <button
+                      disabled
+                      className="px-3.5 py-2 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-600 text-[10px] font-black cursor-not-allowed"
+                    >
+                      مستلمة ✓
+                    </button>
+                  ) : isCompleted ? (
+                    <button
+                      onClick={() => handleClaimChallengeReward(c.id)}
+                      className="px-3.5 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[10px] font-black hover:brightness-110 active:scale-95 transition-all shadow cursor-pointer"
+                    >
+                      استلام المكافأة 🎁
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleLaunchChallenge(c.title)}
+                      className="px-3.5 py-2 rounded-lg bg-[#1a2d1f] border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500 hover:text-black hover:border-emerald-400 text-[10px] font-black transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                    >
+                      <Swords size={12} />
+                      <span>خوض المعركة</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       {/* LIVE COMBAT VIEWPORT (Interactive launch on click) */}
       <section className="bg-[#121e15] border-2 border-[#2b4430] rounded-2xl overflow-hidden shadow-2xl flex flex-col">

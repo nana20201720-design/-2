@@ -105,12 +105,19 @@ export const TacticalMapBriefingModal: React.FC<TacticalMapBriefingModalProps> =
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-md select-none">
+    <div
+      onClick={() => {
+        soundManager.playButtonClick();
+        onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-md select-none overflow-y-auto"
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.94, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 10 }}
-        className="w-full max-w-2xl bg-[#0b140d] border-2 border-[#233f28] rounded-3xl p-4 sm:p-6 shadow-[0_0_60px_rgba(16,185,129,0.2)] text-right space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-2xl bg-[#0b140d] border-2 border-[#233f28] rounded-3xl p-4 sm:p-6 shadow-[0_0_60px_rgba(16,185,129,0.2)] text-right space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar my-auto"
       >
         {/* Header Title */}
         <div className="flex items-center justify-between border-b border-[#1c3321] pb-3">

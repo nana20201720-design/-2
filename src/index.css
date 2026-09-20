@@ -6,7 +6,15 @@
     padding: 0;
     width: 100%;
     min-height: 100%;
-    background-color: #0a110c;
+    background: #040705 !important;
+    background-color: #040705 !important;
+    /* Immersive tactical carbon grid pattern directly on the root body */
+    background-image: 
+      radial-gradient(circle at center, rgba(16, 185, 129, 0.03) 0%, transparent 80%),
+      linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+    background-size: 100% 100%, 20px 20px, 20px 20px;
+    background-position: center, 0 0, 0 0;
     color: #ffffff;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
@@ -20,6 +28,7 @@
     min-height: 100%;
     display: flex;
     flex-direction: column;
+    background: transparent !important;
   }
 }
 
@@ -28,9 +37,31 @@
   display: none;
 }
 
-/* Hide scrollbars for IE, Edge and Firefox */
-* {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+@layer utilities {
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+
+  .scanline {
+    width: 100%;
+    height: 100px;
+    z-index: 5;
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(20, 255, 20, 0.1) 50%, rgba(0, 0, 0, 0) 100%);
+    opacity: 0.1;
+    position: absolute;
+    bottom: 100%;
+    animation: scanline 6s linear infinite;
+  }
+
+  @keyframes scanline {
+    0% { bottom: 100%; }
+    80% { bottom: 100%; }
+    100% { bottom: -100px; }
+  }
 }
 

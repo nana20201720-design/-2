@@ -1,22 +1,59 @@
-import { CharacterState, Projectile, Pickup, ExplosiveBarrel, WoodenCrate, Platform, WeaponType, BloodDecal } from '../types';
+import { CharacterState, Projectile, Pickup, ExplosiveBarrel, WoodenCrate, Platform, WeaponType, BloodDecal, TacticalCover } from '../types';
 import { ParticleSystem } from './particles';
 import { MAP_WIDTH, MAP_HEIGHT, MapData } from './mapData';
 import { WEAPON_CONFIGS } from './weapons';
 import { drawWeaponSprite2D } from './weaponSprites';
+import { settingsManager } from '../utils/settingsManager';
+import { weatherSystem } from './weatherEngine';
 
 export class GameRenderer {
   private ctx: CanvasRenderingContext2D;
   private camera = { x: 0, y: 0, width: 800, height: 450, zoom: 1 };
   private screenShake = 0;
   private animTime = 0;
+  private hitMarkers: Array<{
+    x: number;
+    y: number;
+    isHeadshot: boolean;
+    damage: number;
+    time: number;
+    maxTime: number;
+  }> = [];
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
   }
 
+  public addHitMarker(x: number, y: number, isHeadshot: boolean, damage: number) {
+    this.hitMarkers.push({
+      x,
+      y,
+      isHeadshot,
+      damage,
+      time: 0.28,
+      maxTime: 0.28,
+    });
+    if (this.hitMarkers.length > 8) {
+      this.hitMarkers.shift();
+    }
+  }
+
+  private updateHitMarkers(dt: number) {
+    for (let i = this.hitMarkers.length - 1; i >= 0; i--) {
+      this.hitMarkers[i].time -= dt;
+      if (this.hitMarkers[i].time <= 0) {
+        this.hitMarkers.splice(i, 1);
+      }
+    }
+  }
+
   public setDimensions(width: number, height: number) {
     this.camera.width = width;
     this.camera.height = height;
+  }
+
+  public getCamera() {
+    return this.camera;
   }
 
   public updateCamera(
@@ -28,6 +65,7 @@ export class GameRenderer {
     targetZoom: number = 1
   ) {
     this.animTime += dt;
+    this.updateHitMarkers(dt);
     
     // Smooth zoom lerp
     const zoomLerpSpeed = 4 * dt;
@@ -53,6 +91,9 @@ export class GameRenderer {
     if (this.screenShake > 0) {
       this.screenShake = Math.max(0, this.screenShake - 20 * dt);
     }
+
+    // Update dynamic weather simulation
+    weatherSystem.update(dt);
   }
 
   public addScreenShake(amount: number) {
@@ -67,7 +108,8 @@ export class GameRenderer {
     projectiles: Projectile[],
     particles: ParticleSystem,
     crosshairPos?: { x: number; y: number },
-    scopeLevel: number = 1
+    scopeLevel: number = 1,
+    skipCharacters: boolean = false
   ) {
     const ctx = this.ctx;
     const w = this.camera.width;
@@ -106,6 +148,9 @@ export class GameRenderer {
     // 2.2 Draw Permanent/Decaying Blood Splat Decals on stone & ground surfaces
     this.renderBloodDecals(ctx, particles.getDecals());
 
+    // 2.5 Draw Dynamic 3D Projected Ground Shadows for characters and pickups
+    this.renderDynamic3DShadows(ctx, map.platforms, [player, ...bots], map.pickups);
+
     // 3. Draw Scenery (Bunkers, Outposts, Log Piles, Trees, Signs)
     this.renderScenery(ctx, map.scenery);
 
@@ -117,17 +162,29 @@ export class GameRenderer {
       this.renderCrates(ctx, map.crates);
     }
 
+    // 4.8 Draw 3D Tactical Covers (Midground Pass)
+    if (map.tacticalCovers) {
+      this.renderTacticalCovers(ctx, map.tacticalCovers, false);
+    }
+
     // 5. Draw Pickups
     this.renderPickups(ctx, map.pickups);
 
     // 6. Draw Characters (Player and Bots)
-    for (const bot of bots) {
-      if (!bot.isDead) {
-        this.renderCharacter(ctx, bot);
+    if (!skipCharacters) {
+      for (const bot of bots) {
+        if (!bot.isDead) {
+          this.renderCharacter(ctx, bot);
+        }
+      }
+      if (!player.isDead) {
+        this.renderCharacter(ctx, player, crosshairPos);
       }
     }
-    if (!player.isDead) {
-      this.renderCharacter(ctx, player, crosshairPos);
+
+    // 6.2 Draw 3D Tactical Cover Foreground Occlusion Pass (Rendered OVER crouching players)
+    if (map.tacticalCovers) {
+      this.renderTacticalCovers(ctx, map.tacticalCovers, true);
     }
 
     // 6.5 Draw Camouflage Bushes (Rendered in front of soldiers so they can hide inside!)
@@ -145,15 +202,21 @@ export class GameRenderer {
     this.renderParticles(ctx, particles);
 
     // 9. Draw Atmospheric Lighting & Tunnel Occlusion Shadows
-    this.renderLightingOverlay(ctx, map.scenery.lamps);
+    this.renderLightingOverlay(ctx, map.scenery.lamps, map.scenery.guideMarkers);
 
     ctx.restore(); // Restore world translation
+
+    // 9.8 Draw Dynamic Weather Particles & Atmospheric Tint Overlay
+    weatherSystem.renderOverlay(ctx, w, h);
 
     // 10. Draw Floating Damage Texts (World coordinates mapped)
     this.renderFloatingTexts(ctx, particles);
 
     // 11. Draw Offscreen Enemy Indicators (Mini Militia Radar Arrows)
     this.renderOffscreenEnemyIndicators(ctx, player, bots);
+
+    // 11.5 Draw Tactical Weather Control & Status Badge
+    weatherSystem.renderHUD(ctx, w, h);
 
     // 12. Draw Sniper Scope Vignette & Tactical Reticle when zoomed in
     if (scopeLevel > 1) {
@@ -208,16 +271,102 @@ export class GameRenderer {
       ctx.restore();
     }
 
+    // 13. Render Dynamic High-Impact Hit Marker Overlay
+    this.renderHitMarkers(ctx, crosshairPos);
+
+    ctx.restore();
+  }
+
+  private renderHitMarkers(ctx: CanvasRenderingContext2D, crosshairPos?: { x: number; y: number }) {
+    if (this.hitMarkers.length === 0) return;
+
+    ctx.save();
+
+    for (const hm of this.hitMarkers) {
+      const progress = Math.max(0, hm.time / hm.maxTime); // 1.0 down to 0
+      const alpha = Math.min(1, progress * 1.6);
+      const scale = 0.8 + (1 - progress) * 0.7; // Snappy spring scale animation
+
+      const isHead = hm.isHeadshot;
+      const markerColor = isHead ? `rgba(244, 63, 94, ${alpha})` : `rgba(255, 255, 255, ${alpha})`;
+      const glowColor = isHead ? `rgba(239, 68, 68, ${alpha * 0.9})` : `rgba(56, 189, 248, ${alpha * 0.8})`;
+
+      // 1. World Space Hit Marker Overlay at Impact Point
+      const screenX = (hm.x - this.camera.x) * this.camera.zoom;
+      const screenY = (hm.y - this.camera.y) * this.camera.zoom;
+
+      ctx.save();
+      ctx.translate(screenX, screenY);
+      ctx.scale(scale, scale);
+
+      ctx.strokeStyle = markerColor;
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = isHead ? 16 : 10;
+      ctx.lineWidth = isHead ? 3.8 : 2.8;
+      ctx.lineCap = 'round';
+
+      const size = isHead ? 14 : 10;
+      const gap = 3.5;
+
+      ctx.beginPath();
+      // Top-Left
+      ctx.moveTo(-size, -size); ctx.lineTo(-gap, -gap);
+      // Top-Right
+      ctx.moveTo(size, -size); ctx.lineTo(gap, -gap);
+      // Bottom-Left
+      ctx.moveTo(-size, size); ctx.lineTo(-gap, gap);
+      // Bottom-Right
+      ctx.moveTo(size, size); ctx.lineTo(gap, gap);
+      ctx.stroke();
+
+      if (isHead) {
+        ctx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // 2. HUD Screen-Center / Crosshair Dynamic Hit Marker Indicator
+      const hudX = crosshairPos ? crosshairPos.x : this.camera.width / 2;
+      const hudY = crosshairPos ? crosshairPos.y : this.camera.height / 2;
+
+      ctx.save();
+      ctx.translate(hudX, hudY);
+      ctx.scale(scale * 1.2, scale * 1.2);
+
+      ctx.strokeStyle = markerColor;
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = isHead ? 20 : 12;
+      ctx.lineWidth = isHead ? 3.5 : 2.5;
+      ctx.lineCap = 'round';
+
+      const hudSize = isHead ? 18 : 13;
+      const hudGap = 4.2;
+
+      ctx.beginPath();
+      ctx.moveTo(-hudSize, -hudSize); ctx.lineTo(-hudGap, -hudGap);
+      ctx.moveTo(hudSize, -hudSize); ctx.lineTo(hudGap, -hudGap);
+      ctx.moveTo(-hudSize, hudSize); ctx.lineTo(-hudGap, hudGap);
+      ctx.moveTo(hudSize, hudSize); ctx.lineTo(hudGap, hudGap);
+      ctx.stroke();
+
+      if (isHead) {
+        ctx.font = '900 11px Chakra Petch, sans-serif';
+        ctx.fillStyle = `rgba(244, 63, 94, ${alpha})`;
+        ctx.textAlign = 'center';
+        ctx.fillText('🎯 HEADSHOT!', 0, -hudSize - 8);
+      }
+
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 
   private renderParallaxBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    // 1. Vibrant daylight blue sky gradient matching the original Mini Militia look
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
-    skyGrad.addColorStop(0, '#53a8f5');   // Vibrant rich blue
-    skyGrad.addColorStop(0.4, '#76c4ff');  // Sunny sky blue
-    skyGrad.addColorStop(0.75, '#b0e3ff'); // Soft sunny cyan near horizon
-    skyGrad.addColorStop(1, '#e3f6ff');    // Bright daylight haze
+    // 1. Dynamic weather sky gradient (smoothly transitions between clear, sandstorm, fog, and dusk)
+    const skyGrad = weatherSystem.getSkyGradients(ctx, h);
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, w, h);
 
@@ -522,133 +671,102 @@ export class GameRenderer {
   /**
    * Renders a continuous, seamless, rich subterranean bedrock backdrop
    * covering the entire underground canyon and cavern world (0 to MAP_WIDTH, y: 620 to 2000).
-   * Features detailed geological strata, mineral veins, hanging stalactites,
-   * industrial steel rebar girders, draped conduit cables, and warm emergency halogen lamps.
+   * Features realistic rock textures, stratified mineral veins, hanging stalactites,
+   * cave moss/vines, industrial girders, and glowing parkour tunnel entrance arches.
    */
   private renderTunnelDepthBackdrop(ctx: CanvasRenderingContext2D) {
     ctx.save();
 
     // 1. Full continuous subterranean bedrock backwall spanning the lower world
-    // Deep stone gradient: tactical basalt/slate catacomb rock and military concrete
+    // Deep stone gradient: realistic basalt, slate catacomb rock, and mineral veins
     const caveBackGrad = ctx.createLinearGradient(0, 620, 0, MAP_HEIGHT);
-    caveBackGrad.addColorStop(0, '#4a4235');
-    caveBackGrad.addColorStop(0.18, '#353026');
-    caveBackGrad.addColorStop(0.55, '#232019');
-    caveBackGrad.addColorStop(0.85, '#161410');
-    caveBackGrad.addColorStop(1, '#0d0b09');
+    caveBackGrad.addColorStop(0, '#544a3c');
+    caveBackGrad.addColorStop(0.18, '#3d372c');
+    caveBackGrad.addColorStop(0.55, '#28241d');
+    caveBackGrad.addColorStop(0.85, '#181612');
+    caveBackGrad.addColorStop(1, '#0e0d0a');
     ctx.fillStyle = caveBackGrad;
     ctx.fillRect(0, 620, MAP_WIDTH, MAP_HEIGHT - 620);
 
     // 2. Organic scalloped canyon rim transition along upper boundary (y: 560 - 640)
-    ctx.fillStyle = '#4a4235';
-    for (let rx = 0; rx < MAP_WIDTH; rx += 85) {
-      const rimH = 38 + ((rx * 13) % 40);
+    ctx.fillStyle = '#544a3c';
+    for (let rx = 0; rx < MAP_WIDTH; rx += 80) {
+      const rimH = 40 + ((rx * 13) % 42);
       ctx.beginPath();
-      ctx.ellipse(rx + 42, 620, 52, rimH, 0, 0, Math.PI * 2);
+      ctx.ellipse(rx + 40, 620, 55, rimH, 0, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // 3. Underground Geological Rock Strata & Mineral Vein Layers
-    for (let sy = 690; sy < MAP_HEIGHT - 40; sy += 75) {
+    // 3. Underground Geological Rock Strata & Quartz/Copper Mineral Veins
+    for (let sy = 680; sy < MAP_HEIGHT - 40; sy += 70) {
       // Dark fissure fracture
-      ctx.strokeStyle = '#14120e';
-      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = '#12100d';
+      ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.moveTo(0, sy + Math.sin(sy * 0.05) * 8);
-      for (let sx = 0; sx < MAP_WIDTH; sx += 160) {
-        const midY = sy + Math.sin((sx + sy) * 0.016) * 18;
-        const endY = sy + Math.sin((sx + sy + 80) * 0.016) * 18;
-        ctx.lineTo(sx + 80, midY);
-        ctx.lineTo(sx + 160, endY);
+      ctx.moveTo(0, sy + Math.sin(sy * 0.05) * 10);
+      for (let sx = 0; sx < MAP_WIDTH; sx += 140) {
+        const midY = sy + Math.sin((sx + sy) * 0.016) * 20;
+        const endY = sy + Math.sin((sx + sy + 70) * 0.016) * 20;
+        ctx.lineTo(sx + 70, midY);
+        ctx.lineTo(sx + 140, endY);
       }
       ctx.stroke();
 
-      // Quartz / mineral highlight vein
-      ctx.strokeStyle = '#5a503f';
-      ctx.lineWidth = 1.4;
+      // Quartz / copper mineral highlight vein
+      ctx.strokeStyle = (sy % 140 === 0) ? '#ca8a04' : '#6b5c49';
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.moveTo(0, sy - 2.5 + Math.sin(sy * 0.05) * 8);
-      for (let sx = 0; sx < MAP_WIDTH; sx += 160) {
-        const midY = sy - 2.5 + Math.sin((sx + sy) * 0.016) * 18;
-        const endY = sy - 2.5 + Math.sin((sx + sy + 80) * 0.016) * 18;
-        ctx.lineTo(sx + 80, midY);
-        ctx.lineTo(sx + 160, endY);
+      ctx.moveTo(0, sy - 3 + Math.sin(sy * 0.05) * 10);
+      for (let sx = 0; sx < MAP_WIDTH; sx += 140) {
+        const midY = sy - 3 + Math.sin((sx + sy) * 0.016) * 20;
+        const endY = sy - 3 + Math.sin((sx + sy + 70) * 0.016) * 20;
+        ctx.lineTo(sx + 70, midY);
+        ctx.lineTo(sx + 140, endY);
       }
       ctx.stroke();
     }
 
-    // 4. Subterranean Cavern Depth Pillars & Architectural Carved Fortifications
-    ctx.fillStyle = '#1e1b15';
+    // 4. Subterranean Cavern Depth Pillars & Carved Tunnel Arches
+    ctx.fillStyle = '#221e17';
     // Left Support Pillars
     ctx.beginPath();
     ctx.roundRect(460, 680, 115, 640, 14);
     ctx.roundRect(690, 680, 105, 640, 14);
     ctx.fill();
 
-    // Center Chute Arch Recesses
+    // Tunnel Arch Recesses (Parkour Tunnel Entrances)
+    // Left Chute Tunnel Entrance
+    ctx.fillStyle = '#1a1712';
     ctx.beginPath();
-    ctx.roundRect(1310, 840, 245, 590, 18);
+    ctx.ellipse(800, 1100, 140, 180, 0, 0, Math.PI * 2);
     ctx.fill();
-
-    // Center Valley Drop Shaft Recess
-    ctx.beginPath();
-    ctx.roundRect(1910, 760, 500, 670, 22);
-    ctx.fill();
-
-    // Right Ramp Arch Recess
-    ctx.beginPath();
-    ctx.roundRect(2650, 800, 640, 610, 18);
-    ctx.fill();
-
-    // 5. Realistic Subterranean Industrial Structural I-Beams (Reinforced military bunkers)
-    ctx.strokeStyle = '#2d281f';
-    ctx.lineWidth = 8;
-    ctx.strokeRect(460, 700, 335, 12);
-    ctx.strokeRect(460, 950, 335, 12);
-    ctx.strokeRect(1910, 820, 500, 14);
-    ctx.strokeRect(2650, 850, 640, 14);
-
-    // Rivet Details on Girders
-    ctx.fillStyle = '#423b2e';
-    for (let bx = 475; bx < 790; bx += 30) {
-      ctx.beginPath();
-      ctx.arc(bx, 706, 2.5, 0, Math.PI * 2);
-      ctx.arc(bx, 956, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // 6. Sagging Industrial Conduit / High-Voltage Power Cables draped across cavern ceilings
-    ctx.strokeStyle = 'rgba(15, 14, 11, 0.85)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    // Left Chamber Draped Cable
-    ctx.moveTo(420, 710);
-    ctx.quadraticCurveTo(580, 765, 750, 710);
-    ctx.quadraticCurveTo(900, 770, 1080, 715);
-    // Center Chute Draped Cable
-    ctx.moveTo(1280, 840);
-    ctx.quadraticCurveTo(1430, 910, 1580, 845);
-    // Main Drop Shaft Draped Cable
-    ctx.moveTo(1890, 780);
-    ctx.quadraticCurveTo(2150, 860, 2430, 785);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Secondary Thin Communication Wire
-    ctx.strokeStyle = 'rgba(25, 22, 17, 0.7)';
-    ctx.lineWidth = 1.2;
+    // Center Valley Tunnel Entrance
     ctx.beginPath();
-    ctx.moveTo(420, 716);
-    ctx.quadraticCurveTo(580, 780, 750, 716);
-    ctx.moveTo(1890, 786);
-    ctx.quadraticCurveTo(2150, 875, 2430, 792);
+    ctx.ellipse(1800, 1150, 220, 200, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 3;
     ctx.stroke();
 
-    // 7. Hanging Rock Stalactites along cavern ceiling drops
-    ctx.fillStyle = '#3a3429';
-    for (let stX = 50; stX < MAP_WIDTH - 50; stX += 65) {
-      const stY = 620 + Math.sin(stX * 0.03) * 15;
-      const stH = 18 + ((stX * 11) % 32);
-      const stW = 10 + ((stX * 5) % 8);
+    // Right Drop Chute Tunnel Entrance
+    ctx.beginPath();
+    ctx.ellipse(3200, 1120, 150, 180, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fb923c';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // 5. Realistic Subterranean Hanging Stalactites & Floor Stalagmites
+    // Ceilings Stalactites
+    ctx.fillStyle = '#3f382d';
+    for (let stX = 40; stX < MAP_WIDTH - 40; stX += 55) {
+      const stY = 620 + Math.sin(stX * 0.03) * 12;
+      const stH = 22 + ((stX * 13) % 36);
+      const stW = 12 + ((stX * 7) % 10);
       ctx.beginPath();
       ctx.moveTo(stX, stY);
       ctx.lineTo(stX + stW / 2, stY + stH);
@@ -656,46 +774,43 @@ export class GameRenderer {
       ctx.closePath();
       ctx.fill();
     }
-
-    // 8. Emergency Industrial Halogen Work Lamps with Volumetric Light Cones
-    const lampPositions = [
-      { x: 580, y: 735 },
-      { x: 1430, y: 865 },
-      { x: 2150, y: 810 },
-      { x: 2900, y: 840 },
-    ];
-
-    for (const lamp of lampPositions) {
-      // Warm Halogen Radial Glow Pool
-      const lampGlow = ctx.createRadialGradient(lamp.x, lamp.y, 4, lamp.x, lamp.y, 160);
-      lampGlow.addColorStop(0, 'rgba(251, 191, 36, 0.45)');
-      lampGlow.addColorStop(0.3, 'rgba(245, 158, 11, 0.18)');
-      lampGlow.addColorStop(0.7, 'rgba(217, 119, 6, 0.05)');
-      lampGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = lampGlow;
+    // Floor Stalagmites rising from cave bed (y: 1750)
+    ctx.fillStyle = '#312b23';
+    for (let smX = 80; smX < MAP_WIDTH - 80; smX += 75) {
+      const smY = 1750;
+      const smH = 25 + ((smX * 17) % 40);
+      const smW = 14 + ((smX * 9) % 12);
       ctx.beginPath();
-      ctx.arc(lamp.x, lamp.y, 160, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Yellow Lamp Fixture & Cage
-      ctx.fillStyle = '#d97706';
-      ctx.fillRect(lamp.x - 5, lamp.y - 12, 10, 8);
-      // Glowing Core Bulb
-      ctx.fillStyle = '#fef08a';
-      ctx.beginPath();
-      ctx.arc(lamp.x, lamp.y - 2, 4, 0, Math.PI * 2);
+      ctx.moveTo(smX, smY);
+      ctx.lineTo(smX + smW / 2, smY - smH);
+      ctx.lineTo(smX + smW, smY);
+      ctx.closePath();
       ctx.fill();
     }
 
-    // 9. Ambient Occlusion Vignettes in major chambers
-    // Left Chamber Soft Depth Shadow
+    // 6. Natural Subterranean Vines & Moss draped over cave walls
+    ctx.fillStyle = '#4d7c0f';
+    ctx.strokeStyle = '#3f6212';
+    ctx.lineWidth = 2;
+    for (let vx = 300; vx < MAP_WIDTH - 300; vx += 240) {
+      const vineY = 650 + Math.sin(vx) * 30;
+      ctx.beginPath();
+      ctx.moveTo(vx, vineY);
+      ctx.quadraticCurveTo(vx + 15, vineY + 40, vx + 5, vineY + 80);
+      ctx.stroke();
+      // Moss leaves
+      ctx.beginPath();
+      ctx.arc(vx + 5, vineY + 80, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 7. Cavern Depth Vignettes and Ambient Cave Shadows
     const leftShadow = ctx.createRadialGradient(600, 960, 50, 600, 960, 360);
     leftShadow.addColorStop(0, 'rgba(8, 7, 5, 0.72)');
     leftShadow.addColorStop(1, 'rgba(8, 7, 5, 0)');
     ctx.fillStyle = leftShadow;
     ctx.fillRect(250, 650, 750, 650);
 
-    // Center Drop Shaft Depth Shadow
     const centerShadow = ctx.createRadialGradient(2160, 1060, 60, 2160, 1060, 420);
     centerShadow.addColorStop(0, 'rgba(8, 7, 5, 0.78)');
     centerShadow.addColorStop(1, 'rgba(8, 7, 5, 0)');
@@ -734,13 +849,18 @@ export class GameRenderer {
       ctx.lineWidth = 3.5;
       
       if (p.type === 'ground' || p.type === 'rock') {
-        // 1. Classic Mini Militia Outpost: Organic Grey Stone Base
-        ctx.fillStyle = '#5c4e40';
+        // 1. Classic Mini Militia Outpost: Multi-Layered Stone & Rock Base
+        const stoneGrad = ctx.createLinearGradient(p.x, p.y, p.x, p.y + p.height);
+        stoneGrad.addColorStop(0, '#6b5c4c');
+        stoneGrad.addColorStop(0.3, '#544638');
+        stoneGrad.addColorStop(1, '#3b3025');
+        ctx.fillStyle = stoneGrad;
+
         ctx.beginPath();
         ctx.moveTo(p.x, p.y + 10);
         // Create organic, bumpy top edge
-        for (let x = p.x; x <= p.x + p.width; x += 40) {
-          ctx.quadraticCurveTo(x + 20, p.y - 10 + (Math.sin(x) * 10), x + 40, p.y + 10);
+        for (let x = p.x; x <= p.x + p.width; x += 35) {
+          ctx.quadraticCurveTo(x + 17.5, p.y - 8 + (Math.sin(x * 0.05) * 8), x + 35, p.y + 10);
         }
         ctx.lineTo(p.x + p.width, p.y + p.height);
         ctx.lineTo(p.x, p.y + p.height);
@@ -748,68 +868,97 @@ export class GameRenderer {
         ctx.fill();
         ctx.stroke();
 
-        // [NEW] Added decorative pebbles/rocks on the ground surface for visual richness
-        ctx.fillStyle = '#9c8b78';
-        for (let ix = p.x + 10; ix < p.x + p.width - 10; ix += 40) {
+        // Organic Rock Crack Highlights inside stone platforms
+        ctx.strokeStyle = '#2b2219';
+        ctx.lineWidth = 1.8;
+        for (let cx = p.x + 30; cx < p.x + p.width - 30; cx += 80) {
           ctx.beginPath();
-          ctx.ellipse(ix, p.y + 8, 5 + Math.random() * 5, 2 + Math.random() * 3, 0, 0, Math.PI * 2);
+          ctx.moveTo(cx, p.y + 18);
+          ctx.lineTo(cx + 15, p.y + 35);
+          ctx.lineTo(cx + 5, p.y + 55);
+          ctx.stroke();
+        }
+
+        // Decorative pebbles/gravel on ground surface
+        ctx.fillStyle = '#a3927f';
+        for (let ix = p.x + 15; ix < p.x + p.width - 15; ix += 35) {
+          ctx.beginPath();
+          ctx.ellipse(ix, p.y + 8, 5 + Math.sin(ix) * 3, 2.5, 0, 0, Math.PI * 2);
           ctx.fill();
         }
 
-        // 2. Add grass on top using organic shapes
-        if (!p.oneWay) {
-          ctx.fillStyle = '#76a32d';
+        // Add organic grass on top surface platforms
+        if (!p.oneWay && p.y < 1200) {
+          ctx.fillStyle = '#65a30d';
           ctx.beginPath();
           ctx.moveTo(p.x, p.y + 5);
-          for (let x = p.x; x <= p.x + p.width; x += 20) {
-            ctx.quadraticCurveTo(x + 10, p.y - 5 + (Math.cos(x) * 5), x + 20, p.y + 5);
+          for (let x = p.x; x <= p.x + p.width; x += 18) {
+            ctx.quadraticCurveTo(x + 9, p.y - 6 + (Math.cos(x) * 5), x + 18, p.y + 5);
           }
-          ctx.lineTo(p.x + p.width, p.y + 10);
-          ctx.lineTo(p.x, p.y + 10);
+          ctx.lineTo(p.x + p.width, p.y + 12);
+          ctx.lineTo(p.x, p.y + 12);
           ctx.closePath();
           ctx.fill();
+
+          // Grass blade details
+          ctx.strokeStyle = '#84cc16';
+          ctx.lineWidth = 1.8;
+          for (let gx = p.x + 10; gx < p.x + p.width - 10; gx += 25) {
+            ctx.beginPath();
+            ctx.moveTo(gx, p.y + 4);
+            ctx.lineTo(gx - 3, p.y - 6);
+            ctx.moveTo(gx + 5, p.y + 4);
+            ctx.lineTo(gx + 8, p.y - 8);
+            ctx.stroke();
+          }
         }
 
-        // 4. Hanging rock stalactites on rock ceilings (underground caves)
+        // Glowing Parkour Indicator strips for One-Way Rock Parkour Stepping Ledges
+        if (p.oneWay) {
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillRect(p.x, p.y, p.width, 4);
+          ctx.shadowColor = '#0284c7';
+          ctx.shadowBlur = 8;
+          ctx.fillStyle = '#0284c7';
+          ctx.fillRect(p.x + 10, p.y + 1, p.width - 20, 2);
+          ctx.shadowBlur = 0;
+        }
+
+        // Cave ceiling stalactites
         if (p.y >= 1150 && p.height >= 35) {
-          ctx.fillStyle = '#6b6b6b';
+          ctx.fillStyle = '#3d3429';
           ctx.strokeStyle = '#000000';
-          ctx.lineWidth = 2.4;
-          for (let sx = 20; sx < p.width - 20; sx += 32) {
-            const sLen = 18 + ((sx * 7) % 18);
+          ctx.lineWidth = 1.5;
+          for (let sx = 25; sx < p.width - 25; sx += 50) {
+            const sLen = 6 + ((sx * 3) % 10);
             ctx.beginPath();
             ctx.moveTo(p.x + sx, p.y + p.height);
-            ctx.lineTo(p.x + sx + 7, p.y + p.height + sLen);
-            ctx.lineTo(p.x + sx + 14, p.y + p.height);
+            ctx.lineTo(p.x + sx + 10, p.y + p.height + sLen);
+            ctx.lineTo(p.x + sx + 20, p.y + p.height);
             ctx.fill();
             ctx.stroke();
-
-            // Highlight facet on left of stalactite
-            ctx.fillStyle = '#d5d5d5';
-            ctx.beginPath();
-            ctx.moveTo(p.x + sx, p.y + p.height);
-            ctx.lineTo(p.x + sx + 7, p.y + p.height + sLen);
-            ctx.lineTo(p.x + sx + 7, p.y + p.height);
-            ctx.fill();
-            ctx.fillStyle = '#6b6b6b';
           }
         }
       } else if (p.type === 'wood') {
-        // Floating wooden suspension deck (Vibrant Golden-Brown)
+        // Floating wooden suspension deck / Parkour Bridge
         ctx.fillStyle = '#a16207';
         ctx.fillRect(p.x, p.y, p.width, p.height);
-        ctx.fillStyle = '#ca8a04';
+        ctx.fillStyle = '#facc15';
         ctx.fillRect(p.x, p.y, p.width, 5);
 
         // Plank divisions
         ctx.strokeStyle = '#451a03';
         ctx.lineWidth = 2.2;
-        for (let wx = 28; wx < p.width; wx += 32) {
+        for (let wx = 24; wx < p.width; wx += 28) {
           ctx.beginPath();
           ctx.moveTo(p.x + wx, p.y);
           ctx.lineTo(p.x + wx, p.y + p.height);
           ctx.stroke();
         }
+
+        // Parkour Green/Cyan Edge Highlight for quick visual parkour guidance
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(p.x, p.y, p.width, 3);
 
         // Steel end brackets
         ctx.fillStyle = '#64748b';
@@ -1017,42 +1166,15 @@ export class GameRenderer {
       ctx.fillRect(bk.x - 15, bk.y - 12, bk.width + 30, 20);
       ctx.strokeRect(bk.x - 15, bk.y - 12, bk.width + 30, 20);
 
-      // Rocks and Boulders piled on Bunker Roof (Exact Mini Militia Outpost feature from screenshot)
-      ctx.fillStyle = '#a0a0a0';
+      // Smooth, Low Tactical Sandbags on Bunker Roof (Clean, flat walkable roof)
+      ctx.fillStyle = '#854d0e';
       ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.4;
-      for (let rx = bk.x - 6; rx < bk.x + bk.width + 6; rx += 36) {
-        const rHeight = 22 + ((rx * 7) % 18);
+      ctx.lineWidth = 2;
+      for (let rx = bk.x + 10; rx < bk.x + bk.width - 20; rx += 45) {
         ctx.beginPath();
-        ctx.moveTo(rx, bk.y - 12);
-        ctx.lineTo(rx + 10, bk.y - 12 - rHeight * 0.8);
-        ctx.lineTo(rx + 24, bk.y - 12 - rHeight);
-        ctx.lineTo(rx + 36, bk.y - 12 - rHeight * 0.5);
-        ctx.lineTo(rx + 40, bk.y - 12);
-        ctx.closePath();
+        ctx.roundRect(rx, bk.y - 20, 42, 10, 4);
         ctx.fill();
         ctx.stroke();
-
-        // Facet highlight
-        ctx.fillStyle = '#e0e0e0';
-        ctx.beginPath();
-        ctx.moveTo(rx, bk.y - 12);
-        ctx.lineTo(rx + 10, bk.y - 12 - rHeight * 0.8);
-        ctx.lineTo(rx + 24, bk.y - 12 - rHeight);
-        ctx.lineTo(rx + 18, bk.y - 12);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = '#a0a0a0';
-
-        // Grass tufts on rooftop rocks
-        ctx.fillStyle = '#76a32d';
-        ctx.beginPath();
-        ctx.moveTo(rx + 14, bk.y - 12 - rHeight + 2);
-        ctx.lineTo(rx + 18, bk.y - 12 - rHeight - 8);
-        ctx.lineTo(rx + 22, bk.y - 12 - rHeight + 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = '#a0a0a0';
       }
 
       // 3 Black Observation Window Slits (Mini Militia iconic bunker windows)
@@ -1308,6 +1430,143 @@ export class GameRenderer {
       ctx.fillText(sign.text, sign.x + 10, sign.y - 6);
       ctx.restore();
     }
+
+    // 6. Mounted Tactical Spotlights & Cavern Ceiling Lanterns
+    if (scenery.lamps) {
+      for (const lamp of scenery.lamps) {
+        ctx.save();
+        // Radial Glow Light Pool
+        const lampGlow = ctx.createRadialGradient(lamp.x, lamp.y + 8, 4, lamp.x, lamp.y + 8, 140);
+        lampGlow.addColorStop(0, lamp.color + '77');
+        lampGlow.addColorStop(0.4, lamp.color + '22');
+        lampGlow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = lampGlow;
+        ctx.beginPath();
+        ctx.arc(lamp.x, lamp.y + 8, 140, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Ceiling/Structure Mounting Wire
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(lamp.x, lamp.y - 22);
+        ctx.lineTo(lamp.x, lamp.y);
+        ctx.stroke();
+
+        // Iron Lamp Housing Box
+        ctx.fillStyle = '#334155';
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.fillRect(lamp.x - 7, lamp.y, 14, 10);
+        ctx.strokeRect(lamp.x - 7, lamp.y, 14, 10);
+
+        // Glowing Bulb Core
+        ctx.fillStyle = lamp.color;
+        ctx.beginPath();
+        ctx.arc(lamp.x, lamp.y + 10, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+    }
+
+    // 7. Directional Light Guide Markers (Parkour & Navigation Beacons)
+    this.renderGuideMarkers(ctx, scenery.guideMarkers);
+  }
+
+  // Render Glowing Directional Guide Markers for smooth parkour and path navigation
+  private renderGuideMarkers(ctx: CanvasRenderingContext2D, guideMarkers?: MapData['scenery']['guideMarkers']) {
+    if (!guideMarkers || guideMarkers.length === 0) return;
+
+    for (const gm of guideMarkers) {
+      if (
+        gm.x < this.camera.x - 120 ||
+        gm.x > this.camera.x + this.camera.width + 120 ||
+        gm.y < this.camera.y - 120 ||
+        gm.y > this.camera.y + this.camera.height + 120
+      ) {
+        continue;
+      }
+
+      ctx.save();
+      const pulse = Math.sin(this.animTime * 5.5 + gm.x * 0.05) * 0.25 + 0.75;
+      const arrowShift = Math.sin(this.animTime * 7.5) * 4.5;
+
+      ctx.translate(gm.x, gm.y);
+
+      // Glowing Neon Glass Badge
+      const boxW = 160;
+      const boxH = 32;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      ctx.strokeStyle = gm.color;
+      ctx.lineWidth = 2.2;
+      ctx.shadowColor = gm.color;
+      ctx.shadowBlur = 14 * pulse;
+
+      ctx.beginPath();
+      ctx.roundRect(-boxW / 2, -boxH / 2, boxW, boxH, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // Side Neon Light Bars
+      ctx.fillStyle = gm.color;
+      ctx.fillRect(-boxW / 2 + 3, -boxH / 2 + 4, 3, boxH - 8);
+      ctx.fillRect(boxW / 2 - 6, -boxH / 2 + 4, 3, boxH - 8);
+      ctx.restore();
+
+      // Draw Glowing Animated Arrow Chevrons
+      ctx.save();
+      ctx.strokeStyle = gm.color;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = gm.color;
+      ctx.shadowBlur = 12 * pulse;
+
+      const iconX = -boxW / 2 + 22;
+      ctx.translate(iconX, 0);
+
+      if (gm.direction === 'up' || gm.direction === 'up-right' || gm.direction === 'up-left') {
+        const offset = (gm.direction === 'up-right') ? arrowShift : -arrowShift;
+        ctx.beginPath();
+        ctx.moveTo(-6, 4 + offset * 0.5);
+        ctx.lineTo(0, -5 + offset * 0.5);
+        ctx.lineTo(6, 4 + offset * 0.5);
+        ctx.stroke();
+      } else if (gm.direction === 'down' || gm.direction === 'down-right' || gm.direction === 'down-left') {
+        ctx.beginPath();
+        ctx.moveTo(-6, -4 + arrowShift * 0.5);
+        ctx.lineTo(0, 5 + arrowShift * 0.5);
+        ctx.lineTo(6, -4 + arrowShift * 0.5);
+        ctx.stroke();
+      } else if (gm.direction === 'right') {
+        ctx.beginPath();
+        ctx.moveTo(-5 + arrowShift * 0.5, -6);
+        ctx.lineTo(4 + arrowShift * 0.5, 0);
+        ctx.lineTo(-5 + arrowShift * 0.5, 6);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(5 - arrowShift * 0.5, -6);
+        ctx.lineTo(-4 - arrowShift * 0.5, 0);
+        ctx.lineTo(5 - arrowShift * 0.5, 6);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Render Arabic Directional Label
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px Tajawal, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 4;
+      ctx.fillText(gm.labelAr, 12, 0);
+
+      ctx.restore();
+    }
   }
 
   // Camouflage Bushes (Rendered in front of characters so soldiers can hide inside!)
@@ -1374,6 +1633,158 @@ export class GameRenderer {
     }
   }
 
+  private renderTacticalCovers(ctx: CanvasRenderingContext2D, covers?: TacticalCover[], isForegroundPass: boolean = false) {
+    if (!covers || covers.length === 0) return;
+
+    for (const c of covers) {
+      if (c.destroyed) continue;
+
+      ctx.save();
+      ctx.translate(c.x, c.y);
+
+      if (!isForegroundPass) {
+        // Back/Base 3D Depth Pass (Draw ground contact shadow, rear structure, top bevel)
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.beginPath();
+        ctx.ellipse(c.width / 2, c.height + 4, c.width / 2 + 10, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (c.type === 'sandbag_bunker') {
+          const bagRows = 3;
+          const bagH = c.height / bagRows;
+          for (let r = 0; r < bagRows; r++) {
+            const ry = r * bagH;
+            const cols = 3 + (r % 2);
+            const bagW = c.width / cols;
+            for (let i = 0; i < cols; i++) {
+              const bx = i * bagW;
+              ctx.fillStyle = r % 2 === 0 ? '#854d0e' : '#a16207';
+              ctx.strokeStyle = '#3f2c00';
+              ctx.lineWidth = 1.8;
+              ctx.beginPath();
+              ctx.roundRect(bx + 1, ry + 1, bagW - 2, bagH - 2, 4);
+              ctx.fill();
+              ctx.stroke();
+
+              ctx.strokeStyle = '#fef08a';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(bx + 4, ry + bagH / 2);
+              ctx.lineTo(bx + bagW - 4, ry + bagH / 2);
+              ctx.stroke();
+            }
+          }
+
+          ctx.fillStyle = '#b45309';
+          ctx.strokeStyle = '#3f2c00';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(-4, -4, c.width + 8, 12, 5);
+          ctx.fill();
+          ctx.stroke();
+        } else if (c.type === 'steel_barrier' || c.type === 'concrete_jersey') {
+          const isSteel = c.type === 'steel_barrier';
+          ctx.fillStyle = isSteel ? '#334155' : '#64748b';
+          ctx.strokeStyle = '#0f172a';
+          ctx.lineWidth = 2.2;
+
+          ctx.beginPath();
+          ctx.moveTo(12, 0);
+          ctx.lineTo(c.width - 12, 0);
+          ctx.lineTo(c.width, c.height);
+          ctx.lineTo(0, c.height);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = isSteel ? '#475569' : '#94a3b8';
+          ctx.fillRect(12, 0, c.width - 24, 10);
+
+          ctx.fillStyle = '#facc15';
+          ctx.fillRect(4, c.height - 18, c.width - 8, 12);
+          ctx.fillStyle = '#000000';
+          for (let sx = 8; sx < c.width - 12; sx += 18) {
+            ctx.beginPath();
+            ctx.moveTo(sx, c.height - 6);
+            ctx.lineTo(sx + 8, c.height - 18);
+            ctx.lineTo(sx + 14, c.height - 18);
+            ctx.lineTo(sx + 6, c.height - 6);
+            ctx.fill();
+          }
+
+          if (!isSteel) {
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(20, -4, 6, Math.PI, 0);
+            ctx.arc(c.width - 20, -4, 6, Math.PI, 0);
+            ctx.stroke();
+          }
+        } else if (c.type === 'cargo_container') {
+          ctx.fillStyle = '#1e3a8a';
+          ctx.strokeStyle = '#020617';
+          ctx.lineWidth = 2.5;
+          ctx.fillRect(0, 0, c.width, c.height);
+          ctx.strokeRect(0, 0, c.width, c.height);
+
+          ctx.fillStyle = '#1d4ed8';
+          for (let rx = 8; rx < c.width - 8; rx += 14) {
+            ctx.fillRect(rx, 2, 6, c.height - 4);
+          }
+
+          ctx.fillStyle = '#facc15';
+          ctx.font = '900 9px Chakra Petch, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(c.labelAr || 'U.S. ARMY 3D', c.width / 2, c.height / 2);
+        } else if (c.type === 'missile_pod') {
+          ctx.fillStyle = '#0f172a';
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2;
+          ctx.fillRect(0, 0, c.width, c.height);
+          ctx.strokeRect(0, 0, c.width, c.height);
+
+          ctx.fillStyle = '#06b6d4';
+          ctx.shadowColor = '#38bdf8';
+          ctx.shadowBlur = 8;
+          ctx.fillRect(10, 10, c.width - 20, 8);
+          ctx.shadowBlur = 0;
+        }
+      } else {
+        // Foreground Occlusion Pass (Rendered OVER crouching players)
+        if (c.type === 'sandbag_bunker') {
+          ctx.fillStyle = '#78350f';
+          ctx.strokeStyle = '#271900';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(0, c.height - 24, c.width, 24, 4);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.strokeStyle = '#15803d';
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          ctx.moveTo(12, c.height - 24);
+          ctx.lineTo(12, c.height);
+          ctx.moveTo(c.width - 12, c.height - 24);
+          ctx.lineTo(c.width - 12, c.height);
+          ctx.stroke();
+        } else if (c.type === 'steel_barrier' || c.type === 'concrete_jersey') {
+          ctx.fillStyle = c.type === 'steel_barrier' ? '#1e293b' : '#475569';
+          ctx.strokeStyle = '#020617';
+          ctx.lineWidth = 2;
+          ctx.fillRect(0, c.height - 22, c.width, 22);
+          ctx.strokeRect(0, c.height - 22, c.width, 22);
+        } else if (c.type === 'cargo_container') {
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(2, c.height - 22, c.width - 4, 20);
+        }
+      }
+
+      ctx.restore();
+    }
+  }
+
   private renderBarrels(ctx: CanvasRenderingContext2D, barrels: ExplosiveBarrel[]) {
     for (const b of barrels) {
       if (b.exploded) continue;
@@ -1420,6 +1831,77 @@ export class GameRenderer {
 
       ctx.restore();
     }
+  }
+
+  private renderDynamic3DShadows(
+    ctx: CanvasRenderingContext2D,
+    platforms: Platform[],
+    characters: CharacterState[],
+    pickups: Pickup[]
+  ) {
+    ctx.save();
+    
+    // 3D Shadows for Characters
+    for (const char of characters) {
+      if (char.isDead) continue;
+      const charFeetX = char.x + char.width / 2;
+      const charFeetY = char.y + char.height;
+
+      let nearestGroundY = Infinity;
+      for (const plat of platforms) {
+        if (charFeetX >= plat.x && charFeetX <= plat.x + plat.width) {
+          if (plat.y >= charFeetY - 12 && plat.y < nearestGroundY) {
+            nearestGroundY = plat.y;
+          }
+        }
+      }
+
+      if (nearestGroundY !== Infinity) {
+        const altitude = Math.max(0, nearestGroundY - charFeetY);
+        if (altitude < 380) {
+          const altitudeRatio = altitude / 380;
+          const shadowScaleX = (1.0 - altitudeRatio * 0.35) * (char.isCrouching ? 1.2 : 1.0);
+          const shadowScaleY = (1.0 - altitudeRatio * 0.45);
+          const shadowAlpha = Math.max(0.06, 0.44 * (1.0 - altitudeRatio));
+
+          ctx.fillStyle = `rgba(5, 10, 15, ${shadowAlpha})`;
+          ctx.beginPath();
+          ctx.ellipse(charFeetX, nearestGroundY + 1, 16 * shadowScaleX, 5.5 * shadowScaleY, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // 3D Shadows for floating dropped weapons & pickups
+    for (const p of pickups) {
+      if (!p.active) continue;
+      const pCenterX = p.x + p.width / 2;
+      const pBottomY = p.y + p.height;
+
+      let nearestGroundY = Infinity;
+      for (const plat of platforms) {
+        if (pCenterX >= plat.x && pCenterX <= plat.x + plat.width) {
+          if (plat.y >= pBottomY - 10 && plat.y < nearestGroundY) {
+            nearestGroundY = plat.y;
+          }
+        }
+      }
+
+      if (nearestGroundY !== Infinity) {
+        const altitude = Math.max(0, nearestGroundY - pBottomY);
+        if (altitude < 280) {
+          const altRatio = altitude / 280;
+          const sScale = 1.0 - altRatio * 0.3;
+          const sAlpha = Math.max(0.08, 0.38 * (1.0 - altRatio));
+          ctx.fillStyle = `rgba(5, 10, 15, ${sAlpha})`;
+          ctx.beginPath();
+          ctx.ellipse(pCenterX, nearestGroundY + 1, 14 * sScale, 4.5 * sScale, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    ctx.restore();
   }
 
   private renderPickups(ctx: CanvasRenderingContext2D, pickups: Pickup[]) {
@@ -1533,11 +2015,43 @@ export class GameRenderer {
         this.renderItemBadge(ctx, '📦 AMMO PACK', '#eab308', 0, -24);
 
       } else if (p.type === 'weapon' && p.weapon) {
-        // REAL DROPPED WEAPON ON THE GROUND (NO BOXES!)
+        // 3D FLOATING & SPINNING WEAPON HOLOGRAM (NO BOXES!)
         ctx.save();
-        ctx.rotate(-0.15); // subtle 9-degree floor tilt
-        ctx.scale(1.15, 1.15);
+        const spinCos = Math.cos(this.animTime * 2.2 + p.id); // 3D Y-axis spinning perspective
+
+        // 3D Holographic projection ring on ground underneath
+        const discColor = p.weapon === 'rocket' ? '#f59e0b' : p.weapon === 'sniper' ? '#06b6d4' : p.weapon === 'shotgun' ? '#a855f7' : '#22c55e';
+        ctx.strokeStyle = discColor;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.ellipse(0, 16, 20, 6, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Holographic vertical emitter ray
+        const beamGrad = ctx.createLinearGradient(0, 16, 0, -20);
+        beamGrad.addColorStop(0, 'rgba(6, 182, 212, 0.25)');
+        beamGrad.addColorStop(1, 'rgba(6, 182, 212, 0)');
+        ctx.fillStyle = beamGrad;
+        ctx.beginPath();
+        ctx.moveTo(-16, 16);
+        ctx.lineTo(16, 16);
+        ctx.lineTo(8, -20);
+        ctx.lineTo(-8, -20);
+        ctx.closePath();
+        ctx.fill();
+
+        // 3D Perspective Rotation for Weapon
+        ctx.save();
+        const clampedScaleX = Math.abs(spinCos) > 0.2 ? spinCos * 1.15 : 0.2 * Math.sign(spinCos || 1) * 1.15;
+        ctx.scale(clampedScaleX, 1.15);
         this.renderWeaponSprite(ctx, p.weapon);
+        ctx.restore();
+
+        // 3D floating badge
+        const badgeColor = p.weapon === 'rocket' ? '#f59e0b' : p.weapon === 'sniper' ? '#38bdf8' : p.weapon === 'shotgun' ? '#c084fc' : '#4ade80';
+        const wName = WEAPON_CONFIGS[p.weapon]?.nameAr || p.weapon.toUpperCase();
+        this.renderItemBadge(ctx, `⚔️ ${wName}`, badgeColor, 0, -24);
+
         ctx.restore();
 
       } else if (p.type === 'grenade') {
@@ -1619,12 +2133,24 @@ export class GameRenderer {
     const isFacingRight = char.facingRight;
     const facingMultiplier = isFacingRight ? 1 : -1;
     
-    // Smooth landing cushion knee bend + crouch shift
+    // Dynamic 3D Environment Motion: Landing Squash & Stretch + Crouch Shift
     let crouchShift = char.isCrouching ? 8 : 0;
+    let squashX = 1.0;
+    let squashY = 1.0;
+
     if (char.landingFlexTimer && char.landingFlexTimer > 0) {
       const flexPhase = char.landingFlexTimer / 0.22; // 1.0 down to 0.0
-      crouchShift += Math.sin(flexPhase * Math.PI) * 7.5; // realistic knee cushion compression
+      const flexFactor = Math.sin(flexPhase * Math.PI);
+      crouchShift += flexFactor * 7.5; // knee cushion compression
+      squashY = 1.0 - flexFactor * 0.16; // compressed height
+      squashX = 1.0 + flexFactor * 0.14; // expanded width
+    } else if (char.isJetpacking && char.vy < -200) {
+      // Upward flight stretch
+      squashY = 1.08;
+      squashX = 0.94;
     }
+
+    ctx.scale(squashX, squashY);
 
     // Aerodynamic Flight Tilt Angle (tilts body dynamically into direction of flight or climb)
     if (char.flightTiltAngle) {
@@ -1657,12 +2183,37 @@ export class GameRenderer {
         const targetX = muzzleX + Math.cos(char.aimAngle) * aimDist;
         const targetY = muzzleY + Math.sin(char.aimAngle) * aimDist;
         const crosshairColor = (isMoving || isFiring) ? '#f59e0b' : '#38bdf8';
+        const holoGlow = (isMoving || isFiring) ? 'rgba(245, 158, 11, ' : 'rgba(56, 189, 248, ';
+        const holoPulse = 0.85 + Math.sin(this.animTime * 6) * 0.15;
 
         ctx.save();
+
+        // 3D Holographic Outer Collimator Ring with Rotating Brackets
+        ctx.save();
+        ctx.translate(targetX, targetY);
+        ctx.rotate(this.animTime * 1.8);
+        ctx.strokeStyle = `${holoGlow}${0.45 * holoPulse})`;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(0, 0, spreadRadius + 10, -Math.PI * 0.25, Math.PI * 0.25);
+        ctx.arc(0, 0, spreadRadius + 10, Math.PI * 0.75, Math.PI * 1.25);
+        ctx.stroke();
+
+        // Outer Cyber Corner Triangles
+        ctx.fillStyle = `${holoGlow}${0.6 * holoPulse})`;
+        ctx.beginPath();
+        ctx.moveTo(0, -spreadRadius - 12);
+        ctx.lineTo(-3, -spreadRadius - 16);
+        ctx.lineTo(3, -spreadRadius - 16);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // Solid crosshair precision brackets
         ctx.strokeStyle = crosshairColor;
         ctx.fillStyle = crosshairColor;
         ctx.lineWidth = 2;
-        ctx.setLineDash([]); // solid crosshair brackets
+        ctx.setLineDash([]);
 
         const tickLen = 6;
         // Top tick
@@ -1680,10 +2231,18 @@ export class GameRenderer {
         ctx.lineTo(targetX + spreadRadius + tickLen, targetY);
         ctx.stroke();
 
-        // Center precision dot
+        // Center precision glowing dot
         ctx.beginPath();
         ctx.arc(targetX, targetY, 2.5, 0, Math.PI * 2);
         ctx.fill();
+
+        // Holographic Target Range & Status Tag
+        const distanceM = (aimDist / 20).toFixed(1);
+        ctx.font = '900 7.5px Chakra Petch, monospace';
+        ctx.fillStyle = `${holoGlow}0.95)`;
+        ctx.textAlign = 'center';
+        ctx.fillText(`RNG: ${distanceM}m • LOCKED`, targetX, targetY + spreadRadius + 16);
+
         ctx.restore();
       } else {
         // Bot crosshair dot
@@ -2351,7 +2910,37 @@ export class GameRenderer {
         ctx.restore();
       }
 
-      this.renderWeaponSprite(ctx, currWeapon, weaponScale);
+      const skinId = char.isPlayer ? settingsManager.getSettings().weaponSkins?.[currWeapon] : undefined;
+      this.renderWeaponSprite(ctx, currWeapon, weaponScale, skinId);
+
+      // 3D Holographic Reload Progress Ring floating over receiver
+      if (char.isReloading) {
+        ctx.save();
+        ctx.translate(10, 0);
+        ctx.rotate(-baseGunAngle - totalSwayTilt); // keeps ring upright facing camera
+        
+        // Outer translucent ring
+        ctx.strokeStyle = 'rgba(6, 182, 212, 0.3)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, -18, 14, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Active cyan progress arc
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(0, -18, 14, -Math.PI / 2, -Math.PI / 2 + reloadProgressRatio * Math.PI * 2);
+        ctx.stroke();
+
+        // Percentage text
+        ctx.font = '900 8px Chakra Petch, monospace';
+        ctx.fillStyle = '#e0f2fe';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${Math.floor(reloadProgressRatio * 100)}%`, 0, -18);
+        ctx.restore();
+      }
 
       // Dynamic Disembodied Hands with gripping fingers
       ctx.fillStyle = char.skinTone || '#fbb587';
@@ -2447,7 +3036,18 @@ export class GameRenderer {
       ctx.moveTo(punchDist + 21, -2); ctx.lineTo(punchDist + 21, 2);
       ctx.stroke();
     }
+
+    // 3D Holographic Diegetic HUD Floating over Weapon (Ammo, Chamber Diagnostics, Hologram Matrix)
+    if (char.isPlayer && char.weapons.length > 0 && settingsManager.getSettings().holographicHUD !== false) {
+      this.render3DHolographicWeaponHUD(ctx, char, currWeapon as WeaponType, weaponScale, isFacingRight);
+    }
+
     ctx.restore();
+
+    // 3D Holographic Bio-HUD Floating around Soldier (Curved Health Arc, Shield, Jetpack Fuel Arc, ECG Wave)
+    if (char.isPlayer && settingsManager.getSettings().holographicHUD !== false) {
+      this.render3DHolographicSoldierHUD(ctx, char, currWeapon as WeaponType, isFacingRight, crouchShift);
+    }
 
     ctx.restore(); // restore facing multiplier
     
@@ -2543,8 +3143,376 @@ export class GameRenderer {
     ctx.restore();
   }
 
-  private renderWeaponSprite(ctx: CanvasRenderingContext2D, weapon: string, scale: number = 1.0) {
-    drawWeaponSprite2D(ctx, weapon as WeaponType, scale);
+  private render3DHolographicWeaponHUD(
+    ctx: CanvasRenderingContext2D,
+    char: CharacterState,
+    weapon: WeaponType,
+    weaponScale: number,
+    isFacingRight: boolean
+  ) {
+    const currentAmmo = char.ammo[weapon] ?? 0;
+    const reserveAmmo = char.reserveAmmo[weapon] ?? 0;
+    const cfg = WEAPON_CONFIGS[weapon];
+    const magSize = cfg?.magazineSize || 10;
+    const ammoPct = Math.max(0, Math.min(1, currentAmmo / magSize));
+
+    // Holographic animation pulse
+    const holoPulse = 0.85 + Math.sin(this.animTime * 6) * 0.15;
+    const scanlineY = ((this.animTime * 35) % 24) - 12;
+    const isLowAmmo = currentAmmo <= 3 && !char.isReloading;
+    const isCriticalEmpty = currentAmmo === 0 && !char.isReloading;
+    const isFiring = char.muzzleFlashTimer > 0;
+    const hitFlinch = (char.hitFlinchTimer || 0) > 0;
+
+    // Primary holographic HUD colors
+    let holoBaseColor = 'rgba(6, 182, 212, '; // Cyan
+    let holoBorderColor = '#38bdf8';
+    let holoTextColor = '#e0f2fe';
+    let glowColor = '#06b6d4';
+
+    if (isCriticalEmpty) {
+      holoBaseColor = 'rgba(239, 68, 68, ';
+      holoBorderColor = '#f87171';
+      holoTextColor = '#fecaca';
+      glowColor = '#ef4444';
+    } else if (isLowAmmo) {
+      holoBaseColor = 'rgba(245, 158, 11, ';
+      holoBorderColor = '#fbbf24';
+      holoTextColor = '#fef3c7';
+      glowColor = '#f59e0b';
+    } else if (char.isReloading) {
+      holoBaseColor = 'rgba(168, 85, 247, ';
+      holoBorderColor = '#c084fc';
+      holoTextColor = '#f3e8ff';
+      glowColor = '#a855f7';
+    }
+
+    // Jitter/Glitch offset when taking damage or firing
+    let glitchDx = 0;
+    let glitchDy = 0;
+    if (hitFlinch || isFiring) {
+      glitchDx = (Math.random() - 0.5) * 2.5;
+      glitchDy = (Math.random() - 0.5) * 2.5;
+    }
+
+    ctx.save();
+    // Anchor on weapon receiver/barrel rail
+    const holoAnchorX = 14 + glitchDx;
+    const holoAnchorY = -22 + glitchDy;
+
+    // 1. Holographic Laser Projection Emitter Rays from gun receiver
+    ctx.save();
+    ctx.strokeStyle = `${holoBaseColor}${0.45 * holoPulse})`;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([2, 2]);
+    ctx.beginPath();
+    ctx.moveTo(6, -2);
+    ctx.lineTo(holoAnchorX - 16, holoAnchorY + 12);
+    ctx.moveTo(18, -2);
+    ctx.lineTo(holoAnchorX + 16, holoAnchorY + 12);
+    ctx.stroke();
+    ctx.restore();
+
+    // Emitter base micro-nodes on gun rail
+    ctx.fillStyle = glowColor;
+    ctx.beginPath();
+    ctx.arc(6, -2, 1.5, 0, Math.PI * 2);
+    ctx.arc(18, -2, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. 3D Floating Isometric Holographic Panel
+    ctx.translate(holoAnchorX, holoAnchorY);
+    
+    // 3D Perspective Skew & elevation
+    ctx.transform(1, 0, -0.16, 0.94, 0, 0);
+
+    if (char.isReloading) {
+      // ==========================================
+      // 3D HOLOGRAPHIC RELOAD MATRIX RING
+      // ==========================================
+      const reloadProg = Math.max(0, Math.min(1, 1 - (char.reloadTimer / (char.reloadDuration || 1))));
+      
+      // Hologram Disc Ambient Glow
+      const reloadGlow = ctx.createRadialGradient(0, 0, 2, 0, 0, 26);
+      reloadGlow.addColorStop(0, 'rgba(168, 85, 247, 0.4)');
+      reloadGlow.addColorStop(1, 'rgba(168, 85, 247, 0)');
+      ctx.fillStyle = reloadGlow;
+      ctx.beginPath();
+      ctx.arc(0, 0, 26, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Outer cyber ring with rotating brackets
+      ctx.save();
+      ctx.rotate(this.animTime * 4.5);
+      ctx.strokeStyle = 'rgba(192, 132, 252, 0.8)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, 0, Math.PI * 0.6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, Math.PI, Math.PI * 1.6);
+      ctx.stroke();
+      ctx.restore();
+
+      // Inner Active Reload Progress Arc
+      ctx.strokeStyle = '#e879f9';
+      ctx.lineWidth = 3.2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, 0, 12, -Math.PI / 2, -Math.PI / 2 + reloadProg * Math.PI * 2);
+      ctx.stroke();
+
+      // Digital % text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 8.5px Chakra Petch, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${Math.round(reloadProg * 100)}%`, 0, 0);
+
+      // Floating Arabic Reload Text
+      ctx.fillStyle = '#f3e8ff';
+      ctx.font = 'bold 7px Cairo, sans-serif';
+      ctx.fillText('جاري التلقيم ⚡', 0, -20);
+    } else {
+      // ==========================================
+      // 3D HOLOGRAPHIC AMMO & CHAMBER HUD CARD
+      // ==========================================
+      const cardW = 46;
+      const cardH = 22;
+
+      // Holographic Translucent Backplate
+      ctx.fillStyle = `${holoBaseColor}${0.2 * holoPulse})`;
+      ctx.beginPath();
+      ctx.roundRect(-cardW / 2, -cardH / 2, cardW, cardH, [4, 1, 4, 1]);
+      ctx.fill();
+
+      // Holographic Grid scanlines
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.fillRect(-cardW / 2 + 2, -cardH / 2 + 4, cardW - 4, 1);
+      ctx.fillRect(-cardW / 2 + 2, -cardH / 2 + 10, cardW - 4, 1);
+      ctx.fillRect(-cardW / 2 + 2, -cardH / 2 + 16, cardW - 4, 1);
+
+      // Active vertical scanning beam
+      ctx.fillStyle = `${holoBaseColor}${0.45 * holoPulse})`;
+      ctx.fillRect(-cardW / 2 + 1, scanlineY, cardW - 2, 1.5);
+
+      // Cyber Corner Brackets [ ]
+      ctx.strokeStyle = holoBorderColor;
+      ctx.lineWidth = 1.4;
+      const bracketSize = 4;
+      // Top-Left
+      ctx.beginPath();
+      ctx.moveTo(-cardW / 2 + bracketSize, -cardH / 2);
+      ctx.lineTo(-cardW / 2, -cardH / 2);
+      ctx.lineTo(-cardW / 2, -cardH / 2 + bracketSize);
+      // Top-Right
+      ctx.moveTo(cardW / 2 - bracketSize, -cardH / 2);
+      ctx.lineTo(cardW / 2, -cardH / 2);
+      ctx.lineTo(cardW / 2, -cardH / 2 + bracketSize);
+      // Bottom-Left
+      ctx.moveTo(-cardW / 2, cardH / 2 - bracketSize);
+      ctx.lineTo(-cardW / 2, cardH / 2);
+      ctx.lineTo(-cardW / 2 + bracketSize, cardH / 2);
+      // Bottom-Right
+      ctx.moveTo(cardW / 2, cardH / 2 - bracketSize);
+      ctx.lineTo(cardW / 2, cardH / 2);
+      ctx.lineTo(cardW / 2 - bracketSize, cardH / 2);
+      ctx.stroke();
+
+      // Digital Monospace Ammo Numbers
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '900 11.5px Chakra Petch, monospace';
+      
+      // Ammo Text Shadow Glow & Main Text
+      ctx.fillStyle = `${holoBaseColor}0.8)`;
+      ctx.fillText(`${currentAmmo}`, -9, -1.5);
+      ctx.fillStyle = holoTextColor;
+      ctx.fillText(`${currentAmmo}`, -9, -1.5);
+
+      // Separator slash & Reserve ammo
+      ctx.font = 'bold 8px Chakra Petch, monospace';
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.95)';
+      ctx.fillText(`/${reserveAmmo}`, 11, -1.5);
+
+      // Holographic Segmented Ammo Gauge Ticks (under the numbers)
+      const numTicks = 6;
+      const tickW = 4.5;
+      const tickH = 2.5;
+      const tickSpacing = 5.6;
+      const startX = -((numTicks * tickSpacing) / 2) + tickW / 2;
+      const filledTicks = Math.ceil(ammoPct * numTicks);
+
+      for (let i = 0; i < numTicks; i++) {
+        const tx = startX + i * tickSpacing;
+        const isFilled = i < filledTicks;
+        ctx.fillStyle = isFilled ? (isLowAmmo ? '#f59e0b' : '#38bdf8') : 'rgba(71, 85, 105, 0.4)';
+        ctx.fillRect(tx, cardH / 2 - 5, tickW, tickH);
+      }
+
+      // Top Header Weapon Holo-Badge (floating above card)
+      ctx.fillStyle = holoBorderColor;
+      ctx.font = '900 6.5px Chakra Petch, sans-serif';
+      ctx.textAlign = 'center';
+      const tagText = isCriticalEmpty ? '⚠️ EMPTY' : isLowAmmo ? '⚠️ LOW AMMO' : `${weapon.toUpperCase()}`;
+      ctx.fillText(tagText, 0, -cardH / 2 - 3.5);
+    }
+
+    ctx.restore();
+  }
+
+  private render3DHolographicSoldierHUD(
+    ctx: CanvasRenderingContext2D,
+    char: CharacterState,
+    weapon: WeaponType,
+    isFacingRight: boolean,
+    crouchShift: number
+  ) {
+    const hpPct = Math.max(0, Math.min(1, char.health / char.maxHealth));
+    const fuelPct = Math.max(0, Math.min(1, char.fuel / (char.maxFuel || 100)));
+    const holoPulse = 0.85 + Math.sin(this.animTime * 5) * 0.15;
+    const isCriticalHp = hpPct < 0.25;
+    const isDamaged = hpPct < 0.5;
+
+    ctx.save();
+    // Center above soldier
+    ctx.translate(0, -22 + crouchShift);
+
+    // 1. 3D Holographic Curved Health Arc (Floating on Left/Front Side)
+    const healthArcRadius = 24;
+    const healthColor = isCriticalHp ? '#ef4444' : isDamaged ? '#f59e0b' : '#10b981';
+    const healthGlow = isCriticalHp ? 'rgba(239, 68, 68, ' : isDamaged ? 'rgba(245, 158, 11, ' : 'rgba(16, 185, 129, ';
+
+    ctx.save();
+    // 3D Perspective Elliptical Tilt
+    ctx.scale(1.15, 0.82);
+
+    // Hologram Background Arc (Shield/Health Track)
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.65)';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(-6, 0, healthArcRadius, Math.PI * 0.7, Math.PI * 1.35);
+    ctx.stroke();
+
+    // Active Health Glow Arc
+    ctx.strokeStyle = `${healthGlow}${0.9 * holoPulse})`;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    const healthStartAngle = Math.PI * 1.35;
+    const healthEndAngle = healthStartAngle - (hpPct * Math.PI * 0.65);
+    ctx.beginPath();
+    ctx.arc(-6, 0, healthArcRadius, healthStartAngle, healthEndAngle, true);
+    ctx.stroke();
+
+    // 2. 3D Holographic Jetpack Fuel Arc (Floating on Right/Thrusters Side)
+    const fuelArcRadius = 24;
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.65)';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(6, 0, fuelArcRadius, -Math.PI * 0.35, Math.PI * 0.3);
+    ctx.stroke();
+
+    // Active Fuel Energy Arc
+    ctx.strokeStyle = `rgba(56, 189, 248, ${0.9 * holoPulse})`;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    const fuelStartAngle = -Math.PI * 0.35;
+    const fuelEndAngle = fuelStartAngle + (fuelPct * Math.PI * 0.65);
+    ctx.beginPath();
+    ctx.arc(6, 0, fuelArcRadius, fuelStartAngle, fuelEndAngle);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // 3. Holographic ECG Vital Signs Line / HP Numerical HUD floating above
+    ctx.save();
+    const hpTextY = -24;
+    
+    // Translucent micro-badge
+    ctx.fillStyle = `${healthGlow}0.18)`;
+    ctx.strokeStyle = healthColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(-22, hpTextY - 8, 44, 14, 3);
+    ctx.fill();
+    ctx.stroke();
+
+    // 3D Tactical Cover Holographic Badge
+    if (char.isInCover) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.22)';
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(-38, hpTextY - 22, 76, 11, 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = '900 7px Chakra Petch, sans-serif';
+      ctx.fillStyle = '#6ee7b7';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🛡️ احتماء تكتيكي (-85%)', 0, hpTextY - 17);
+      ctx.restore();
+    }
+
+    // ECG Heartbeat wave animation
+    ctx.strokeStyle = `${healthGlow}${0.7 * holoPulse})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const waveOffset = (this.animTime * 25) % 18;
+    ctx.moveTo(-18, hpTextY);
+    ctx.lineTo(-12 + waveOffset * 0.2, hpTextY);
+    ctx.lineTo(-8 + waveOffset * 0.2, hpTextY - 3);
+    ctx.lineTo(-4 + waveOffset * 0.2, hpTextY + 3);
+    ctx.lineTo(0 + waveOffset * 0.2, hpTextY);
+    ctx.lineTo(6, hpTextY);
+    ctx.stroke();
+
+    // Digital HP Number
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 8.5px Chakra Petch, monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${Math.round(char.health)}`, 18, hpTextY);
+
+    // Heart Icon
+    ctx.fillStyle = healthColor;
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('❤️', -20, hpTextY + 1);
+
+    // 4. 3D Floating Holographic Network Ping & Sync Indicator (Floating above HP)
+    const pingValue = Math.floor(22 + Math.sin(this.animTime * 1.5) * 6);
+    const pingColor = pingValue < 50 ? '#10b981' : '#f59e0b';
+    ctx.font = '900 7px Chakra Petch, monospace';
+    ctx.textAlign = 'center';
+    
+    // Holographic Translucent Backplate for Ping
+    ctx.fillStyle = 'rgba(6, 182, 212, 0.25)';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.roundRect(-24, hpTextY - 21, 48, 10, 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Live Signal Pulse Dot
+    ctx.fillStyle = pingColor;
+    ctx.beginPath();
+    ctx.arc(-18, hpTextY - 16, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#e0f2fe';
+    ctx.fillText(`PING ${pingValue}ms • 3D SYNC`, 2, hpTextY - 16);
+
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  private renderWeaponSprite(ctx: CanvasRenderingContext2D, weapon: string, scale: number = 1.0, skinId?: string) {
+    drawWeaponSprite2D(ctx, weapon as WeaponType, scale, skinId);
   }
 
   private renderProjectiles(ctx: CanvasRenderingContext2D, projectiles: Projectile[]) {
@@ -2810,7 +3778,11 @@ export class GameRenderer {
     return hex;
   }
 
-  private renderLightingOverlay(ctx: CanvasRenderingContext2D, lamps: MapData['scenery']['lamps']) {
+  private renderLightingOverlay(
+    ctx: CanvasRenderingContext2D,
+    lamps: MapData['scenery']['lamps'],
+    guideMarkers?: MapData['scenery']['guideMarkers']
+  ) {
     const visibleW = (this.camera.width / this.camera.zoom) + 200;
     const visibleH = (this.camera.height / this.camera.zoom) + 200;
     const minX = this.camera.x - 120;
@@ -2932,6 +3904,25 @@ export class GameRenderer {
         }
       }
     }
+
+    // Volumetric Glow for Directional Guide Markers
+    if (guideMarkers) {
+      for (const gm of guideMarkers) {
+        if (gm.x < minX || gm.x > maxX || gm.y < minY || gm.y > maxY) continue;
+        const pulse = 0.85 + 0.15 * Math.sin(this.animTime * 6 + gm.x);
+        const radius = 130 * pulse;
+        const radialGlow = ctx.createRadialGradient(gm.x, gm.y, 4, gm.x, gm.y, radius);
+        radialGlow.addColorStop(0, gm.color + 'aa');
+        radialGlow.addColorStop(0.4, gm.color + '38');
+        radialGlow.addColorStop(1, 'rgba(0,0,0,0)');
+
+        ctx.fillStyle = radialGlow;
+        ctx.beginPath();
+        ctx.arc(gm.x, gm.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
     ctx.restore();
   }
 

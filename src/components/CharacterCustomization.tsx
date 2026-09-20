@@ -29,6 +29,8 @@ import { soundManager } from '../audio/soundManager';
 import { settingsManager } from '../utils/settingsManager';
 import { haptics } from '../utils/haptics';
 import { LiveSoldierCanvas } from './LiveSoldierCanvas';
+import { GLTFSoldierPreview } from './GLTFSoldierPreview';
+import { EnvironmentSwitcher } from './EnvironmentSwitcher';
 import { TacticalGearIcon } from './TacticalGearIcon';
 import {
   soldierProgressionManager,
@@ -37,8 +39,12 @@ import {
   SkillDefinition,
 } from '../utils/soldierProgressionManager';
 import { SoldierProgression, SoldierSkills } from '../types';
+import {
+  PreviewEnvironmentType,
+  PREVIEW_ENVIRONMENTS,
+} from '../game/threeEnvironments';
 
-type CustomTab = 'skills' | 'headgear' | 'armor' | 'camo' | 'face' | 'jetpack' | 'trails';
+type CustomTab = 'skills' | 'headgear' | 'armor' | 'cape' | 'camo' | 'face' | 'jetpack' | 'trails' | 'environment' | 'gltf';
 
 interface EquipmentOption {
   id: string;
@@ -52,6 +58,49 @@ interface EquipmentOption {
   cost?: string;
   camoHex?: string;
 }
+
+const CAPE_OPTIONS: EquipmentOption[] = [
+  {
+    id: 'full_set',
+    name: 'عتاد الكوماندوز المكتمل + قلادة الهوية (Full Tactical Set)',
+    nameEn: 'Full Cape, Scarf & Dog Tags',
+    rarity: 'خرافي ★★★★★',
+    rarityColor: 'text-amber-300 border-amber-400',
+    perk: 'عباءة تكتيكية + وشاح حركي + قلادة الهوية الميدانية بتأثيرات حركة واقعية',
+    icon: '🧣🪖',
+    unlocked: true,
+  },
+  {
+    id: 'tactical_cape',
+    name: 'عباءة القوات الخاصة الديناميكية (Dynamic Tactical Cape)',
+    nameEn: 'Special Ops Tactical Cape',
+    rarity: 'أسطوري ★★★★★',
+    rarityColor: 'text-cyan-400 border-cyan-500',
+    perk: 'انسيابية فيزياء القماش عند تدوير المحارب في الـ 3D',
+    icon: '🦸‍♂️',
+    unlocked: true,
+  },
+  {
+    id: 'commando_scarf',
+    name: 'وشاح الكوماندوز الأحمر الثوري (Red Commando Scarf)',
+    nameEn: 'Red Commando Scarf',
+    rarity: 'نادر ★★★★',
+    rarityColor: 'text-red-400 border-red-500',
+    perk: 'رفرفة ديناميكية خفيفة مع الحركة والدوران',
+    icon: '🧣',
+    unlocked: true,
+  },
+  {
+    id: 'none',
+    name: 'بدون عباءة (No Cape)',
+    nameEn: 'No Cape',
+    rarity: 'أساسي ★★★',
+    rarityColor: 'text-gray-400 border-gray-500',
+    perk: 'مظهر القتال المباشر بدون إكسسوارات إضافية',
+    icon: '🚫',
+    unlocked: true,
+  },
+];
 
 const HEADGEARS: EquipmentOption[] = [
   {
@@ -488,6 +537,15 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
   const [equippedJetpack, setEquippedJetpack] = useState(() => settingsManager.getSettings().equippedJetpack || 'military_dual');
   const [equippedTrail, setEquippedTrail] = useState(() => settingsManager.getSettings().equippedTrail || 'neon_purple');
   const [equippedPrimary, setEquippedPrimary] = useState(() => settingsManager.getSettings().equippedPrimaryWeapon || 'sniper');
+  const [equippedCape, setEquippedCape] = useState<'none' | 'tactical_cape' | 'commando_scarf' | 'full_set'>('full_set');
+  const [enablePhysics, setEnablePhysics] = useState<boolean>(true);
+  const [previewMode, setPreviewMode] = useState<'3d' | '2d'>('3d');
+  const [selectedEnv, setSelectedEnv] = useState<PreviewEnvironmentType>(
+    () => settingsManager.getSettings().previewEnvironment || 'training_grounds'
+  );
+
+  const [gltfModelUrl, setGltfModelUrl] = useState<string>(() => settingsManager.getSettings().gltfModelUrl || '');
+  const [gltfUrlInput, setGltfUrlInput] = useState<string>(() => settingsManager.getSettings().gltfModelUrl || '');
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -589,6 +647,13 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
     showToast(`🔥 تم تجهيز تأثير لهب النفاثة: ${item.name}!`);
   };
 
+  const handleEquipCape = (item: EquipmentOption) => {
+    soundManager.playSwitchWeapon();
+    haptics.medium();
+    setEquippedCape(item.id as any);
+    showToast(`🧣 تم تجهيز عتاد القماش والعباءة: ${item.name}!`);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -604,12 +669,42 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
         <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-amber-400 pointer-events-none" />
 
         {/* Top Header & Status Bar */}
-        <div className="w-full flex items-center justify-between mb-3 border-b border-amber-500/30 pb-2.5">
+        <div className="w-full flex items-center justify-between mb-3 border-b border-amber-500/30 pb-2.5 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-emerald-500/20 text-amber-300 border border-amber-500/60 px-3 py-1 rounded-full text-xs font-black shadow-md">
               <Sparkles size={13} className="text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
-              🎯 إطار معاينة المحارب التكتيكي (DOODLE SOLDIER PREVIEW)
+              🎯 معاينة المحارب التكتيكي ثلاثي الأبعاد (3D GLTF SOLDIER)
             </span>
+
+            {/* 3D / 2D View Switcher Pill */}
+            <div className="flex items-center bg-black/80 rounded-xl p-0.5 border border-white/10 shadow-inner">
+              <button
+                onClick={() => {
+                  soundManager.playButtonClick();
+                  setPreviewMode('3d');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer ${
+                  previewMode === '3d'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-[0_0_10px_rgba(6,182,212,0.5)]'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <span>3D مجسم</span>
+              </button>
+              <button
+                onClick={() => {
+                  soundManager.playButtonClick();
+                  setPreviewMode('2d');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer ${
+                  previewMode === '2d'
+                    ? 'bg-amber-500 text-black shadow-[0_0_10px_rgba(245,158,11,0.5)]'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <span>2D رسم</span>
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -639,19 +734,73 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
           </div>
         </div>
 
-        {/* Live Interactive Canvas Studio Frame */}
+        {/* Live Interactive 3D GLTF / 2D Canvas Studio Frame */}
         <div className="w-full relative flex flex-col items-center">
-          <LiveSoldierCanvas
-            camoColor={camoColor}
-            headgear={equippedHeadgear}
-            bodyArmor={equippedArmor}
-            eyewear={equippedEyewear}
-            beard={equippedBeard}
-            jetpackStyle={equippedJetpack}
-            trailColor={equippedTrail}
-            weapon={equippedPrimary}
-            onActionToast={showToast}
-          />
+          {previewMode === '3d' ? (
+            <GLTFSoldierPreview
+              camoColor={camoColor}
+              headgear={equippedHeadgear}
+              bodyArmor={equippedArmor}
+              eyewear={equippedEyewear}
+              beard={equippedBeard}
+              jetpackStyle={equippedJetpack}
+              trailColor={equippedTrail}
+              weapon={equippedPrimary}
+              capeStyle={equippedCape}
+              enableClothingPhysics={enablePhysics}
+              environment={selectedEnv}
+              onEnvironmentChange={(env) => setSelectedEnv(env)}
+              gltfModelUrl={gltfModelUrl}
+              height={360}
+              interactive={true}
+              showPedestal={true}
+              autoRotateDefault={true}
+              onActionToast={showToast}
+            />
+          ) : (
+            <LiveSoldierCanvas
+              camoColor={camoColor}
+              headgear={equippedHeadgear}
+              bodyArmor={equippedArmor}
+              eyewear={equippedEyewear}
+              beard={equippedBeard}
+              jetpackStyle={equippedJetpack}
+              trailColor={equippedTrail}
+              weapon={equippedPrimary}
+              onActionToast={showToast}
+            />
+          )}
+
+          {/* Dynamic Clothing Physics Quick Control Badge */}
+          {previewMode === '3d' && (
+            <div className="mt-2 w-full flex items-center justify-between bg-black/80 border border-emerald-500/40 px-3 py-1.5 rounded-2xl text-xs font-bold text-emerald-300 shadow-md flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Activity size={15} className="text-emerald-400 animate-pulse" />
+                <span>فيزياء القماش والعباءة (Cloth Motion Simulation):</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-gray-400">تجاوب مع دوران الـ 3D:</span>
+                <button
+                  onClick={() => {
+                    soundManager.playButtonClick();
+                    setEnablePhysics(!enablePhysics);
+                    showToast(
+                      !enablePhysics
+                        ? '⚡ تم تفعيل فيزياء حركة الملابس والعباءة عند الدوران!'
+                        : '⏸️ تم إيقاف محاكي فيزياء القماش'
+                    );
+                  }}
+                  className={`px-3 py-1 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1 ${
+                    enablePhysics
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-black shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+                      : 'bg-gray-800 text-gray-400 border border-gray-600'
+                  }`}
+                >
+                  <span>{enablePhysics ? 'مُفعّل ⚡' : 'معطّل ⏸️'}</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Real-time XP Progress Bar under canvas */}
@@ -764,6 +913,21 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
         <button
           onClick={() => {
             soundManager.playButtonClick();
+            setActiveTab('cape');
+          }}
+          className={`px-3.5 py-2 rounded-xl text-xs font-black shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'cape'
+              ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md'
+              : 'bg-[#132018] text-gray-300 hover:text-white border border-[#273d2b]'
+          }`}
+        >
+          <Activity size={14} />
+          <span>العباءات وفيزياء الحركة</span>
+        </button>
+
+        <button
+          onClick={() => {
+            soundManager.playButtonClick();
             setActiveTab('camo');
           }}
           className={`px-3.5 py-2 rounded-xl text-xs font-black shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -820,6 +984,36 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
           <Flame size={14} />
           <span>لهب النفاثة (Nitro)</span>
         </button>
+
+        <button
+          onClick={() => {
+            soundManager.playButtonClick();
+            setActiveTab('environment');
+          }}
+          className={`px-3.5 py-2 rounded-xl text-xs font-black shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'environment'
+              ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-black shadow-md shadow-amber-500/30 ring-2 ring-amber-400'
+              : 'bg-[#132018] text-amber-300 hover:text-white border border-[#3d321d]'
+          }`}
+        >
+          <Sparkles size={14} className="text-amber-400 animate-pulse" />
+          <span>البيئة والاستوديو 3D</span>
+        </button>
+
+        <button
+          onClick={() => {
+            soundManager.playButtonClick();
+            setActiveTab('gltf');
+          }}
+          className={`px-3.5 py-2 rounded-xl text-xs font-black shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'gltf'
+              ? 'bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 text-black shadow-md ring-2 ring-cyan-400'
+              : 'bg-[#132018] text-cyan-300 hover:text-white border border-[#273d2b]'
+          }`}
+        >
+          <span>👾</span>
+          <span>نموذج 3D شخصية مخصصة</span>
+        </button>
       </div>
 
       {/* 3. EQUIPMENT & SKILLS ITEMS GRID */}
@@ -835,10 +1029,16 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
               {activeTab === 'face' && 'اختر النظارات الباليستية واللحية والسيجار:'}
               {activeTab === 'jetpack' && 'اختر طراز محرك ونفاثة الظهر:'}
               {activeTab === 'trails' && 'اختر لون وتأثير لهب النفاثة (Nitro Trail):'}
+              {activeTab === 'environment' && 'اختر استوديو وبيئة المعاينة ثلاثية الأبعاد (3D Backdrop):'}
+              {activeTab === 'gltf' && 'تحميل نموذج شخصية ثلاثي الأبعاد مخصص (GLTF/GLB):'}
             </h3>
           </div>
           <span className="text-[10px] text-amber-400 font-mono font-bold">
-            {activeTab === 'skills' ? `نقاط المهارة المتاحة: ${progression.skillPoints} ⭐` : 'انقر للإلباس الفوري والتطبيق'}
+            {activeTab === 'skills'
+              ? `نقاط المهارة المتاحة: ${progression.skillPoints} ⭐`
+              : activeTab === 'environment'
+              ? 'يتم تطبيق البيئة فورياً على نموذج 3D'
+              : 'انقر للإلباس الفوري والتطبيق'}
           </span>
         </div>
 
@@ -1114,6 +1314,61 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
           </div>
         )}
 
+        {/* TAB 2.5: CAPE & DYNAMIC CLOTH PHYSICS */}
+        {activeTab === 'cape' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {CAPE_OPTIONS.map((c) => {
+              const isEquipped = equippedCape === c.id;
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => handleEquipCape(c)}
+                  className={`bg-[#121d15] border-2 rounded-2xl p-4 flex flex-col justify-between transition-all cursor-pointer ${
+                    isEquipped
+                      ? 'border-purple-400 bg-[#21152a] shadow-lg shadow-purple-500/25'
+                      : 'border-[#223525] hover:border-[#38533d] hover:bg-[#16251b]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${c.rarityColor}`}>
+                      {c.rarity}
+                    </span>
+                    {isEquipped && (
+                      <span className="bg-purple-400 text-black text-[10px] font-black px-2 py-0.5 rounded flex items-center gap-1">
+                        <Check size={12} /> مجهز حالياً
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 my-2">
+                    <div className="w-14 h-14 bg-[#070e0a] rounded-2xl flex items-center justify-center border border-purple-500/30 text-2xl shadow-inner shrink-0">
+                      {c.icon}
+                    </div>
+                    <div className="text-right space-y-1">
+                      <h4 className="text-sm font-black text-white">{c.name}</h4>
+                      <p className="text-xs text-purple-200/80 leading-relaxed">{c.perk}</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEquipCape(c);
+                    }}
+                    className={`w-full mt-2 py-2 rounded-xl text-xs font-black transition-all ${
+                      isEquipped
+                        ? 'bg-purple-950 text-purple-300 border border-purple-600'
+                        : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white active:scale-95 shadow-md'
+                    }`}
+                  >
+                    {isEquipped ? 'مُفعل مع فيزياء القماش' : 'تجهيز العتاد الديناميكي'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* TAB 3: CAMO PATTERNS & UNIFORMS */}
         {activeTab === 'camo' && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -1345,6 +1600,176 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* TAB 7: 3D PREVIEW ENVIRONMENTS (استوديو وبيئات المعاينة 3D) */}
+        {activeTab === 'environment' && (
+          <div className="space-y-4">
+            <EnvironmentSwitcher
+              currentEnvironment={selectedEnv}
+              onSelectEnvironment={(env) => {
+                setSelectedEnv(env);
+                settingsManager.updateSettings({ previewEnvironment: env });
+                showToast(`🗺️ تم تبديل البيئة إلى: ${PREVIEW_ENVIRONMENTS[env].nameAr}`);
+              }}
+              showDetails={true}
+            />
+
+            {/* Tactical Environment Specs & Features Info Box */}
+            <div className="bg-gradient-to-r from-[#111e14] via-[#0c1810] to-[#070e08] border border-amber-500/40 rounded-2xl p-3.5 sm:p-4 shadow-lg text-right space-y-2">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                  <Sparkles size={13} className="text-amber-400 animate-spin" />
+                  ميزات وإضاءة البيئة النشطة ({PREVIEW_ENVIRONMENTS[selectedEnv].nameEn}):
+                </span>
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+                  {PREVIEW_ENVIRONMENTS[selectedEnv].badge}
+                </span>
+              </div>
+              <p className="text-xs text-gray-300 leading-relaxed">
+                {selectedEnv === 'training_grounds' &&
+                  '• ميادين الرماية والتدريب: إضاءة شمسية نهارية دافئة مع سواتر وأكياس رمل عسكرية، أهداف رماية خشبية، حواجز مضادة للمدرعات، وتأثيرات غبار تكتيكي متطاير.'}
+                {selectedEnv === 'military_bunker' &&
+                  '• المخبأ العسكري المصفح: جدران وأعمدة فولاذية مدعمة، أضواء إنذار حمراء وبرتقالية وامضة، أنابيب طاقة صناعية، منصة شبكية حديدية، وصناديق ذخيرة مصفحة.'}
+                {selectedEnv === 'tech_lab' &&
+                  '• المختبر التقني المتطور: حلقات هولوجرام عائمة بزاوية 360°، أعمدة بلازما كهربائية مع زجاج فيزيائي، شبكات ليزرية متوهجة، وانبعاثات طاقة كمية سماوية وبنفسجية.'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 8: CUSTOM 3D GLTF MODEL (تحميل نموذج شخصية مخصص) */}
+        {activeTab === 'gltf' && (
+          <div className="space-y-4 text-right">
+            <div className="bg-[#111e14] border border-cyan-500/30 rounded-2xl p-4 space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <span className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
+                  🕹️ التحكم بالنموذج ثلاثي الأبعاد المخصص:
+                </span>
+                {gltfModelUrl && (
+                  <button
+                    onClick={() => {
+                      soundManager.playSwitchWeapon();
+                      setGltfModelUrl('');
+                      setGltfUrlInput('');
+                      settingsManager.updateSettings({ gltfModelUrl: '' });
+                      showToast('🗑️ تم إلغاء تجهيز النموذج والعودة للجندي الأساسي!');
+                    }}
+                    className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/40 px-2 py-0.5 rounded-full hover:bg-red-500 hover:text-black font-bold transition-all cursor-pointer"
+                  >
+                    إلغاء التجهيز (Reset)
+                  </button>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-300 leading-relaxed">
+                يمكنك تحميل أي نموذج شخصية ثلاثي الأبعاد بصيغة <strong>GLTF</strong> أو <strong>GLB</strong> ليلعب مكان الجندي في اللعبة ومعاينة التخصيص! أدخل رابط الـ URL المباشر للنموذج بالأسفل أو اختر من النماذج التجريبية الجاهزة فوراً.
+              </p>
+
+              {/* URL Input */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-400 block">رابط النموذج المباشر (Direct GLTF/GLB URL):</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={gltfUrlInput}
+                    onChange={(e) => setGltfUrlInput(e.target.value)}
+                    placeholder="https://example.com/character.glb"
+                    className="flex-1 bg-black/60 border border-emerald-500/30 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-cyan-400 font-mono text-left"
+                    style={{ direction: 'ltr' }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (!gltfUrlInput.trim()) {
+                        showToast('⚠️ يرجى إدخال رابط صالح أولاً!');
+                        return;
+                      }
+                      soundManager.playButtonClick();
+                      setGltfModelUrl(gltfUrlInput);
+                      settingsManager.updateSettings({ gltfModelUrl: gltfUrlInput });
+                      showToast('🔄 جاري معاينة النموذج المخصص...');
+                    }}
+                    className="bg-cyan-500 hover:bg-cyan-400 text-black px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer"
+                  >
+                    تطبيق (Apply)
+                  </button>
+                </div>
+              </div>
+
+              {/* Predefined Beautiful Tactical Presets */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-gray-400 block">نماذج وهولوجرامات قتالية جاهزة للاستخدام (Ready Presets):</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    onClick={() => {
+                      const url = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/RobotExpressive/glTF-Binary/RobotExpressive.glb';
+                      soundManager.playButtonClick();
+                      setGltfUrlInput(url);
+                      setGltfModelUrl(url);
+                      settingsManager.updateSettings({ gltfModelUrl: url });
+                      showToast('🤖 تم تطبيق الروبوت القتالي المتحرك!');
+                    }}
+                    className={`p-2.5 rounded-xl border text-right transition-all flex flex-col gap-1 cursor-pointer ${
+                      gltfModelUrl === 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/RobotExpressive/glTF-Binary/RobotExpressive.glb'
+                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                        : 'bg-black/40 border-white/10 hover:border-white/20 text-gray-300'
+                    }`}
+                  >
+                    <span className="text-xs font-black">🤖 الروبوت التعبيري (Expressive Mech)</span>
+                    <span className="text-[10px] text-gray-400 font-medium">كامل مع تأثيرات وحركات تعبيرية مذهلة</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const url = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BrainStem/glTF-Binary/BrainStem.glb';
+                      soundManager.playButtonClick();
+                      setGltfUrlInput(url);
+                      setGltfModelUrl(url);
+                      settingsManager.updateSettings({ gltfModelUrl: url });
+                      showToast('👾 تم تطبيق سايبورغ المعركة!');
+                    }}
+                    className={`p-2.5 rounded-xl border text-right transition-all flex flex-col gap-1 cursor-pointer ${
+                      gltfModelUrl === 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BrainStem/glTF-Binary/BrainStem.glb'
+                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                        : 'bg-black/40 border-white/10 hover:border-white/20 text-gray-300'
+                    }`}
+                  >
+                    <span className="text-xs font-black">👾 سايبورغ المعركة (Battle Cyborg)</span>
+                    <span className="text-[10px] text-gray-400 font-medium">جهاز قتالي ميكانيكي هولوجرامي متطور</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const url = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Fox/glTF-Binary/Fox.glb';
+                      soundManager.playButtonClick();
+                      setGltfUrlInput(url);
+                      setGltfModelUrl(url);
+                      settingsManager.updateSettings({ gltfModelUrl: url });
+                      showToast('🦊 الثعلب القتالي السريع!');
+                    }}
+                    className={`p-2.5 rounded-xl border text-right transition-all flex flex-col gap-1 cursor-pointer ${
+                      gltfModelUrl === 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Fox/glTF-Binary/Fox.glb'
+                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                        : 'bg-black/40 border-white/10 hover:border-white/20 text-gray-300'
+                    }`}
+                  >
+                    <span className="text-xs font-black">🦊 الثعلب النفاث (Tactical Fox)</span>
+                    <span className="text-[10px] text-gray-400 font-medium">نموذج ذو حجم مثالي مع حركات ركض ديناميكية</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-[#0e1710] border border-amber-500/30 rounded-2xl p-3.5 flex items-start gap-2.5 text-amber-300">
+              <span className="text-lg">💡</span>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-bold">نصائح ومعلومات الأداء والاستقرار:</h4>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  يتم معالجة النماذج المخصصة تلقائياً عبر نظام <strong>LOD</strong> المحسن ومحركات الذخائر والمؤثرات، لحمايتها من الاختفاء أو بطء الاستجابة. لضمان أداء ثابت وتفادي أي بطء في معدل الفريمات (FPS) على الأجهزة المتوسطة والضعيفة، يفضل أن يكون حجم ملف النموذج أقل من 5 ميغابايت.
+                </p>
+              </div>
+            </div>
           </div>
         )}
       </section>

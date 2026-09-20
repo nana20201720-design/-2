@@ -15,6 +15,7 @@ import {
 import { WeaponItem } from '../../types';
 import { soundManager } from '../../audio/soundManager';
 import { haptics } from '../../utils/haptics';
+import { WeaponSpriteSVG } from '../../game/weaponSprites';
 
 interface BulletHole {
   id: number;
@@ -281,34 +282,13 @@ export const WeaponFiringRange: React.FC<WeaponFiringRangeProps> = ({ weapon }) 
               transition={{ duration: 0.12 }}
               className="relative w-full max-w-[180px] h-28 flex items-center justify-center"
             >
-              {weapon.id === 'desert_eagle_gold' ? (
-                <img
-                  src="/images/desert_eagle_gold.jpg"
-                  alt={weapon.name}
-                  className="max-h-full max-w-full object-contain filter drop-shadow-[0_0_12px_rgba(245,158,11,0.4)]"
+              <div className="relative w-full h-32 flex items-center justify-center">
+                <WeaponSpriteSVG
+                  weapon={weapon.id}
+                  lightingMode="pbr"
+                  className="w-40 h-24 filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.9)]"
                 />
-              ) : (
-                <div className="w-32 h-20 rounded-xl bg-gradient-to-br from-[#1b2d20] to-[#0e1711] border border-[#2d4733] flex flex-col items-center justify-center shadow-lg relative">
-                  {weapon.id === 'sniper' ? (
-                    <Crosshair size={42} className="text-cyan-400" />
-                  ) : weapon.id === 'rocket' ? (
-                    <Flame size={42} className="text-red-400" />
-                  ) : weapon.id === 'dual_uzi' ? (
-                    <Zap size={42} className="text-amber-400" />
-                  ) : weapon.id === 'shotgun' ? (
-                    <Target size={42} className="text-orange-400" />
-                  ) : weapon.id === 'saw_gun' ? (
-                    <Sliders size={42} className="text-yellow-400" />
-                  ) : weapon.id === 'riot_shield' ? (
-                    <Shield size={42} className="text-blue-400" />
-                  ) : (
-                    <Crosshair size={42} className="text-emerald-400" />
-                  )}
-                  <span className="text-[10px] font-mono font-bold text-gray-300 mt-1">
-                    {weapon.nameEn}
-                  </span>
-                </div>
-              )}
+              </div>
 
               {/* Muzzle Flash VFX */}
               <AnimatePresence>

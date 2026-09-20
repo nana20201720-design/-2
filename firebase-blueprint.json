@@ -7,7 +7,7 @@
       "properties": {
         "displayName": { "type": "string", "maxLength": 100 },
         "email": { "type": "string", "maxLength": 150 },
-        "status": { "type": "string", "enum": ["online", "in_game", "offline"] },
+        "status": { "type": "string", "enum": ["online", "in_game", "in_store", "offline"] },
         "lastSeen": { "type": "number" },
         "currentRoomCode": { "type": "string", "maxLength": 64 },
         "friends": { "type": "array" },
@@ -51,6 +51,31 @@
         "status": { "type": "string", "enum": ["pending", "accepted", "declined"] }
       },
       "required": ["id", "fromUid", "fromName", "toUid", "roomCode", "status"]
+    },
+    "MatchPlayerState": {
+      "title": "Real-time Match Player Position State",
+      "description": "Live sync player state including coordinates, aiming, weapon and health.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "vx": { "type": "number" },
+        "vy": { "type": "number" },
+        "aimAngle": { "type": "number" },
+        "health": { "type": "number" },
+        "fuel": { "type": "number" },
+        "currentWeapon": { "type": "string", "maxLength": 50 },
+        "isJetpacking": { "type": "boolean" },
+        "isDead": { "type": "boolean" },
+        "camoColor": { "type": "string", "maxLength": 32 },
+        "kills": { "type": "number" },
+        "deaths": { "type": "number" },
+        "team": { "type": "string", "maxLength": 16 },
+        "lastUpdated": { "type": "number" }
+      },
+      "required": ["uid", "name", "x", "y", "health", "lastUpdated"]
     }
   },
   "firestore": {
@@ -65,6 +90,10 @@
     "/invitations/{inviteId}": {
       "schema": "Invitation",
       "description": "Quick room invitation cards indexed by unique request ID."
+    },
+    "/matches/{matchId}/players/{playerId}": {
+      "schema": "MatchPlayerState",
+      "description": "Real-time sync positions and stats for live players in a battle arena match."
     }
   }
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Flame, Shield, Target, Play, Volume2, Sparkles } from 'lucide-react';
 import { soundManager } from '../audio/soundManager';
-import realisticCommandoImg from '../assets/images/realistic_commando_1789736030533.jpg';
+import militaryArenaBg from '../assets/images/military_arena_bg_1789831118619.jpg';
 
 const GAME_TIPS = [
   'السر في الفوز هو استخدام طاقة الجيت باك (Jetpack) بحكمة، لا تجعل خزان الوقود يفرغ في منتصف المعركة! 🚀',
@@ -94,8 +94,8 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
         transition={{ duration: 20, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
         className="absolute inset-0 bg-cover bg-center"
         style={{ 
-          backgroundImage: `url(${realisticCommandoImg})`,
-          filter: 'brightness(0.35) contrast(1.1) saturate(0.8)'
+          backgroundImage: `url(${militaryArenaBg})`,
+          filter: 'brightness(0.55) contrast(1.1) saturate(0.9)'
         }}
       />
       
@@ -133,11 +133,20 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
           initial={{ scale: 0.7, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.7, type: "spring", damping: 12 }}
-          className="w-28 h-28 rounded-[2rem] bg-gradient-to-tr from-emerald-600 via-emerald-500 to-amber-500 p-1 shadow-[0_0_50px_rgba(16,185,129,0.55)] flex items-center justify-center mb-6 relative group"
+          className="w-28 h-28 rounded-[2rem] bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-500 p-1 shadow-[0_0_50px_rgba(245,158,11,0.55)] flex items-center justify-center mb-6 relative group"
         >
-          <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-tr from-amber-500 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-md" />
-          <div className="w-full h-full rounded-[1.8rem] bg-neutral-950 flex items-center justify-center relative z-10 border border-emerald-400/30">
-            <Flame className="w-16 h-16 text-amber-400 fill-amber-500/10 animate-[bounce_2s_infinite]" />
+          <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-tr from-amber-500 to-yellow-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-md" />
+          <div className="w-full h-full rounded-[1.8rem] bg-neutral-950 flex items-center justify-center relative z-10 border border-amber-400/30 overflow-hidden">
+            <img 
+              src="/public/images/app_logo.jpg" 
+              alt="Logo" 
+              className="w-full h-full object-cover opacity-80"
+              onError={(e) => {
+                // Fallback to flame icon if image fails
+                (e.target as any).style.display = 'none';
+              }}
+            />
+            <Flame className="w-16 h-16 text-amber-400 fill-amber-500/10 animate-[bounce_2s_infinite] absolute" />
           </div>
           <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-amber-500 border-2 border-neutral-950 flex items-center justify-center shadow-lg">
             <Sparkles className="w-3.5 h-3.5 text-neutral-950" />

@@ -17,6 +17,8 @@ import {
 import { CharacterState, KillFeedItem, WeaponType, NearbyWeaponInfo } from '../types';
 import { WEAPON_CONFIGS } from '../game/weapons';
 import { WeaponSpriteSVG } from '../game/weaponSprites';
+import { settingsManager } from '../utils/settingsManager';
+import { NetworkStatusBadge } from './NetworkStatusBadge';
 
 interface HUDProps {
   player: CharacterState | null;
@@ -51,6 +53,7 @@ interface HUDProps {
   onSwapWeapon?: () => void;
   nearbyWeapon?: NearbyWeaponInfo | null;
   onSelectPlayer?: (index: number) => void;
+  onOpenTacticalWheel?: () => void;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -66,9 +69,28 @@ export const HUD: React.FC<HUDProps> = ({
   onSwapWeapon,
   nearbyWeapon,
   onSelectPlayer,
+  onOpenTacticalWheel,
 }) => {
   const [announcerMsg, setAnnouncerMsg] = React.useState<{ text: string, color: string, id: number } | null>(null);
   const [showScoreboard, setShowScoreboard] = React.useState(false);
+  const [showMiniLeaderboard, setShowMiniLeaderboard] = React.useState(false);
+  const [isLandscapeMode, setIsLandscapeMode] = React.useState<boolean>(
+    settingsManager.getSettings().isLandscapeMode === true
+  );
+  const [isHoloHUD, setIsHoloHUD] = React.useState<boolean>(settingsManager.getSettings().holographicHUD !== false);
+
+  React.useEffect(() => {
+    const unsub = settingsManager.subscribe((s) => {
+      setIsLandscapeMode(s.isLandscapeMode === true);
+    });
+    return unsub;
+  }, []);
+
+  const toggleHoloHUD = () => {
+    const current = settingsManager.getSettings().holographicHUD !== false;
+    settingsManager.updateSettings({ holographicHUD: !current });
+    setIsHoloHUD(!current);
+  };
 
   const sortedPlayers = React.useMemo(() => {
     if (!matchInfo.players) return [];
@@ -101,9 +123,20 @@ export const HUD: React.FC<HUDProps> = ({
     }
   }, [announcerMsg?.id]);
 
+  // --- KILLING SPREE ALERTS ---
+  const [spreeAlert, setSpreeAlert] = React.useState<{weapon: WeaponType, count: number, id: number} | null>(null);
+
+  // المتغيرات المشتقة من اللاعب
+  const currWeapon = player?.weapons[player?.currentWeaponIndex] || 'pistol';
+
+  React.useEffect(() => {
+    if (player && player.killStreak > 2 && player.killStreak % 3 === 0) {
+      setSpreeAlert({ weapon: currWeapon, count: player.killStreak, id: Date.now() });
+    }
+  }, [player?.killStreak, currWeapon]);
+  
   if (!player) return null;
 
-  const currWeapon = player.weapons[player.currentWeaponIndex] || 'pistol';
   const currCfg = WEAPON_CONFIGS[currWeapon];
   const currentAmmo = player.ammo[currWeapon] ?? 0;
   const reserveAmmo = player.reserveAmmo[currWeapon] ?? 0;
@@ -121,12 +154,29 @@ export const HUD: React.FC<HUDProps> = ({
     return <WeaponSpriteSVG weapon={id} className={className || "w-8 h-6"} />;
   };
 
-  const activeIndex = matchInfo.activePlayerIndex ?? 0;
-
   // Render a single kill feed item
   const renderKillFeedItem = (item: KillFeedItem) => {
     const killerName = item.isKillerBot ? `[BOT] ${item.killerName}` : item.killerName;
     const victimName = item.isVictimBot ? `[BOT] ${item.victimName}` : item.victimName;
+    const style = settingsManager.getSettings().killFeedIconStyle;
+
+    let containerStyle = "flex items-center gap-1.5 bg-black/60 px-2 py-1 rounded border border-white/5 text-[10px] md:text-xs mb-1 shadow-sm";
+    let killerStyle = `${item.isKillerBot ? 'text-neutral-400' : 'text-sky-300'} font-bold`;
+    let victimStyle = `${item.isVictimBot ? 'text-neutral-400' : 'text-rose-300'} font-bold`;
+    let iconStyle = "w-4 h-3 text-white";
+
+    if (style === 'bold') {
+      containerStyle += " border-white/20";
+    } else if (style === 'neon') {
+      containerStyle += " border-cyan-500/30 shadow-[0_0_4px_rgba(6,182,212,0.2)]";
+      killerStyle = "text-cyan-300 font-bold";
+      iconStyle = "w-4 h-3 text-cyan-300";
+    } else if (style === 'minimalist') {
+      containerStyle = "flex items-center gap-1 bg-black/30 px-1.5 py-0.5 rounded text-[9px] md:text-[10px] mb-0.5 opacity-80";
+      killerStyle = "text-neutral-400 font-bold";
+      victimStyle = "text-neutral-500 font-bold";
+      iconStyle = "w-3 h-2 text-neutral-400";
+    }
     
     return (
       <motion.div
@@ -134,19 +184,41 @@ export const HUD: React.FC<HUDProps> = ({
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
-        className="flex items-center gap-2 bg-black/40 backdrop-blur-sm px-2 py-1 rounded border border-white/10 text-[10px] md:text-xs mb-1"
+        className={containerStyle}
       >
-        <span className={`${item.isKillerBot ? 'text-neutral-400' : 'text-sky-400'} font-bold`}>{killerName}</span>
-        <div className="flex items-center gap-1 opacity-80">
-          <WeaponSpriteSVG weapon={item.weapon as WeaponType} className="w-5 h-3 text-white" />
+        <span className={killerStyle}>{killerName}</span>
+        <div className="flex items-center gap-1 opacity-90">
+          <WeaponSpriteSVG weapon={item.weapon as WeaponType} className={iconStyle} />
         </div>
-        <span className={`${item.isVictimBot ? 'text-neutral-400' : 'text-rose-400'} font-bold`}>{victimName}</span>
+        <span className={victimStyle}>{victimName}</span>
       </motion.div>
     );
   };
 
   return (
     <div id="game-hud-layer" className="absolute inset-0 pointer-events-none p-3 select-none flex flex-col justify-between z-20">
+      
+      {/* KILLING SPREE ALERTS (Top Right) */}
+      <div className="absolute top-16 right-3 z-30">
+        <AnimatePresence>
+          {spreeAlert && (
+            <motion.div
+              key={spreeAlert.id}
+              initial={{ opacity: 0, y: -20, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="bg-neutral-900/90 border-2 border-amber-500 rounded-xl p-3 flex items-center gap-3 shadow-2xl mb-2"
+            >
+              <div className="flex flex-col items-center">
+                <span className="text-amber-400 font-black text-xs uppercase tracking-tighter">Spreé!</span>
+                <span className="text-white font-black text-lg">{spreeAlert.count}</span>
+              </div>
+              <WeaponSpriteSVG weapon={spreeAlert.weapon} className="w-10 h-6 text-white" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* JETPACK FUEL SCREEN OVERLAY (PULSING RED WHEN LOW) */}
       <AnimatePresence>
         {player.isJetpacking && (
@@ -204,80 +276,96 @@ export const HUD: React.FC<HUDProps> = ({
           {/* Scope Zoom Circle */}
           <button
             onClick={onToggleScope}
-            className="w-10 h-10 rounded-full border-2 border-neutral-400 bg-neutral-200 text-neutral-800 font-black text-[11px] shadow-lg cursor-pointer hover:bg-neutral-300 active:scale-90 transition-all flex flex-col items-center justify-center relative"
-            title="تغيير المنظور (1X / 2X / 3X)"
+            className="w-9 h-9 rounded-full border-2 border-neutral-500 bg-neutral-300 text-neutral-900 font-black text-[10px] shadow-md cursor-pointer hover:bg-neutral-400 active:scale-95 transition-all flex flex-col items-center justify-center relative"
+            title="تغيير المنظور"
           >
-            <span className="text-[8px] text-neutral-500 font-sans tracking-tighter leading-none">SCOPE</span>
-            <span className="text-[11px] font-black leading-none">{scopeLevel}x</span>
+            <span className="text-[7px] text-neutral-600 font-sans tracking-tighter leading-none">SCOPE</span>
+            <span className="text-[10px] font-black leading-none">{scopeLevel}x</span>
           </button>
 
-          {/* Mini Militia Classic Health & Boost Bar Container (Metallic Gray skewed) */}
-          <div className="bg-neutral-200 border-2 border-neutral-400 p-1.5 px-3.5 shadow-lg flex flex-col gap-1.5 min-w-[155px] max-w-[190px] transform -skew-x-12 rounded-xl relative">
-            {/* Top Bar: Hot Pink/Magenta Health Bar with Heart Icon */}
-            <div className="flex items-center gap-1.5 transform skew-x-12">
-              <span className="text-xs shrink-0">❤️</span>
-              <div className="flex-1 bg-neutral-400/40 rounded-full h-3 p-0.5 border border-neutral-400 overflow-hidden relative">
+          {/* Mini Militia Classic Health & Boost Bar Container */}
+          <div className="bg-neutral-300 border-2 border-neutral-500 p-1 px-2 shadow-md flex flex-col gap-0.5 min-w-[130px] max-w-[150px] transform -skew-x-12 rounded-lg relative">
+            {/* Health Bar */}
+            <div className="flex items-center gap-1 transform skew-x-12">
+              <span className="text-[10px] shrink-0">❤️</span>
+              <div className="flex-1 bg-neutral-500/40 rounded-full h-2.5 p-0.5 border border-neutral-500 overflow-hidden relative">
                 <div
-                  className="h-full rounded-full transition-all duration-150 bg-[#d946ef]"
+                  className="h-full rounded-full transition-all duration-150 bg-rose-500"
                   style={{ width: `${Math.max(0, Math.min(100, player.health))}%` }}
                 />
               </div>
             </div>
 
-            {/* Bottom Bar: Electric Blue Boost / Jetpack Fuel with Wings/Jetpack Icon */}
-            <div className="flex items-center gap-1.5 transform skew-x-12">
-              <span className="text-xs shrink-0">⚡</span>
-              <div className="flex-1 bg-neutral-400/40 rounded-full h-2 p-0.5 border border-neutral-400 overflow-hidden relative">
+            {/* Boost Bar */}
+            <div className="flex items-center gap-1 transform skew-x-12">
+              <span className="text-[10px] shrink-0">⚡</span>
+              <div className="flex-1 bg-neutral-500/40 rounded-full h-1.5 p-0.5 border border-neutral-500 overflow-hidden relative">
                 <div
-                  className="h-full rounded-full transition-all duration-75 bg-[#2563eb]"
+                  className="h-full rounded-full transition-all duration-75 bg-sky-500"
                   style={{ width: `${Math.max(0, Math.min(100, player.fuel))}%` }}
                 />
               </div>
             </div>
           </div>
 
-          {/* Circular Pause Button attached next to the trapezoid gauge */}
+          {/* Circular Pause Button */}
           <button
             id="btn-pause-game"
             onClick={onPause}
-            className="w-8 h-8 rounded-full bg-neutral-200 border-2 border-neutral-400 text-neutral-800 flex items-center justify-center hover:bg-neutral-300 active:scale-90 shadow-md cursor-pointer transform -skew-x-12 -ml-2 z-10"
+            className="w-7 h-7 rounded-full bg-neutral-300 border-2 border-neutral-500 text-neutral-900 flex items-center justify-center hover:bg-neutral-400 active:scale-95 shadow-md cursor-pointer transform -skew-x-12 -ml-2 z-10"
             title="إيقاف مؤقت"
           >
-            <span className="text-[10px] font-black font-mono">⏸</span>
+            <span className="text-[9px] font-black">⏸</span>
           </button>
         </div>
 
-        {/* TOP CENTER: Match Timer */}
-        <div className="flex flex-col items-center gap-1">
-          {/* Timer & Players Switcher */}
-          <button
-            onClick={() => setShowScoreboard(!showScoreboard)}
-            className="flex items-center gap-1.5 bg-neutral-900/90 hover:bg-neutral-800 border border-white/40 rounded-full px-3 py-1 shadow-md pointer-events-auto cursor-pointer transition-all active:scale-95"
-            title="انقر لفتح لوحة الصدارة الكاملة"
-          >
-            <span className="text-white font-mono font-black text-xs">⏱️ {timerStr}</span>
-            <span className="text-amber-400 text-[10px] font-black border-l border-white/20 pl-1.5 ml-1">🏆 الصدارة</span>
-          </button>
-          {matchInfo.players && matchInfo.players.length > 1 && (
-            <div className="flex items-center gap-1 ml-2 bg-neutral-900/40 p-0.5 rounded-full pointer-events-auto mt-1">
-              {matchInfo.players.map((p, idx) => {
-                const isCurrent = idx === activeIndex;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => onSelectPlayer?.(idx)}
-                    className={`px-1.5 py-0.2 rounded text-[10px] font-black cursor-pointer ${
-                      isCurrent
-                        ? 'bg-sky-500 text-white font-bold'
-                        : 'bg-neutral-800 text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    P{idx + 1}
-                  </button>
-                );
-              })}
+        {/* TOP CENTER: Match Timer & 3D Holo HUD Status */}
+        <div className="flex flex-col items-center gap-0.5">
+          <div className="flex items-center gap-1 flex-wrap justify-center">
+            {/* Timer Button */}
+            <button
+              onClick={() => setShowScoreboard(!showScoreboard)}
+              className="flex items-center gap-1 bg-neutral-900/80 hover:bg-neutral-800 border border-amber-600/50 rounded-full px-2 py-0.5 shadow-sm pointer-events-auto cursor-pointer transition-all active:scale-95"
+              title="انقر لفتح لوحة الصدارة الكاملة"
+            >
+              <span className="text-white font-mono font-black text-[10px]">⏱️ {timerStr}</span>
+              <span className="text-amber-400 text-[8px] font-black border-l border-white/20 pl-1 ml-0.5">🏆</span>
+            </button>
+
+            {/* Quick Landscape / Orientation Toggle */}
+            <button
+              onClick={() => {
+                const newLandscape = !isLandscapeMode;
+                settingsManager.updateSettings({ isLandscapeMode: newLandscape });
+              }}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[9px] font-black pointer-events-auto cursor-pointer transition-all active:scale-95 shadow-sm ${
+                isLandscapeMode
+                  ? 'bg-cyan-900/80 border-cyan-500 text-cyan-200'
+                  : 'bg-neutral-900/70 border-neutral-700 text-neutral-400 hover:text-white'
+              }`}
+              title="تبديل وضع الشاشة"
+            >
+              <span>{isLandscapeMode ? '📱' : '📱'}</span>
+            </button>
+
+            {/* Live Network Sync & Latency Badge */}
+            <div className="pointer-events-auto">
+              <NetworkStatusBadge compact />
             </div>
-          )}
+
+            {/* 3D Holo HUD Quick Toggle Button */}
+            <button
+              onClick={toggleHoloHUD}
+              className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[9px] font-black pointer-events-auto cursor-pointer transition-all active:scale-95 shadow-sm ${
+                isHoloHUD
+                  ? 'bg-cyan-900/80 border-cyan-500 text-cyan-200'
+                  : 'bg-neutral-900/70 border-neutral-700 text-neutral-400 hover:text-white'
+              }`}
+              title="تفعيل/تعطيل واجهة الهولوجرام"
+            >
+              <span className={isHoloHUD ? 'animate-pulse text-cyan-300' : ''}>💠</span>
+            </button>
+          </div>
         </div>
 
         {/* TOP RIGHT: Kill Feed & Weapon HUD */}
@@ -289,47 +377,59 @@ export const HUD: React.FC<HUDProps> = ({
             </AnimatePresence>
           </div>
 
+          {/* 3D Hologram Tactical Menu Button */}
+          {onOpenTacticalWheel && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenTacticalWheel();
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-400/60 text-cyan-300 font-mono font-bold text-xs flex items-center gap-1.5 shadow-[0_0_15px_rgba(6,182,212,0.35)] backdrop-blur-md active:scale-95 transition-all cursor-pointer pointer-events-auto"
+              title="فتح القائمة التكتيكية 3D (الأسلحة والدروع والدعم)"
+            >
+              <Target size={14} className="text-cyan-400 animate-pulse" />
+              <span className="text-[10px] font-black tracking-wider">3D عتاد</span>
+            </button>
+          )}
+
           {/* Mini Militia Classic Symmetrical Weapon HUD */}
           <div className="flex items-center gap-1">
-          {/* Weapon Metallic Frame (Symmetrical skew) */}
-          <div
-            onClick={onSwitchWeapon}
-            className="bg-neutral-200 border-2 border-neutral-400 px-3.5 py-1.5 shadow-lg flex items-center gap-3 cursor-pointer transform skew-x-12 rounded-xl hover:scale-105 active:scale-95 transition-all"
-            title="انقر لتبديل السلاح"
-          >
-            {/* Ammo status in black/white digital monospace font */}
-            <div className="transform -skew-x-12 flex flex-col items-start font-mono text-neutral-900 leading-none">
-              <div className="flex items-baseline gap-1">
-                <span className="text-[13px] font-black tracking-tight">
-                  {String(currentAmmo).padStart(3, '0')}
-                </span>
-                <span className="text-[9px] text-neutral-500 font-bold">
-                  {String(reserveAmmo).padStart(3, '0')}
-                </span>
+            {/* Weapon Metallic Frame */}
+            <div
+              onClick={onSwitchWeapon}
+              className="bg-neutral-300 border-2 border-neutral-500 px-2 py-1 shadow-md flex items-center gap-2 cursor-pointer transform skew-x-12 rounded-lg hover:scale-105 active:scale-95 transition-all"
+              title="انقر لتبديل السلاح"
+            >
+              {/* Ammo status */}
+              <div className="transform -skew-x-12 flex flex-col items-start font-mono text-neutral-900 leading-none">
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-[11px] font-black tracking-tight">
+                    {String(currentAmmo).padStart(3, '0')}
+                  </span>
+                  <span className="text-[8px] text-neutral-600 font-bold">
+                    {String(reserveAmmo).padStart(3, '0')}
+                  </span>
+                </div>
               </div>
-              <span className="text-[7px] font-black text-neutral-500 uppercase leading-none mt-1">
-                {currWeapon.toUpperCase()}
-              </span>
+
+              {/* Weapon silhouette sprite */}
+              <div className="w-8 h-5 flex items-center justify-center transform -skew-x-12">
+                {renderWeaponIcon(currWeapon, "w-8 h-4 text-neutral-900")}
+              </div>
             </div>
 
-            {/* Weapon silhouette sprite */}
-            <div className="w-10 h-6 flex items-center justify-center transform -skew-x-12">
-              {renderWeaponIcon(currWeapon, "w-9 h-5 text-neutral-800")}
-            </div>
+            {/* Circular Quick Action Reload Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onReload();
+              }}
+              className="w-7 h-7 rounded-full bg-neutral-300 border-2 border-neutral-500 text-neutral-900 flex items-center justify-center hover:bg-neutral-400 active:scale-95 shadow-md cursor-pointer transform skew-x-12 -ml-2 z-10"
+              title="تلقيم السلاح"
+            >
+              <span className="text-[10px]">🔄</span>
+            </button>
           </div>
-
-          {/* Circular Quick Action Grenade / Reload Button attached directly next to it */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onReload();
-            }}
-            className="w-8 h-8 rounded-full bg-neutral-200 border-2 border-neutral-400 text-neutral-800 flex items-center justify-center hover:bg-neutral-300 active:scale-90 shadow-md cursor-pointer transform skew-x-12 -ml-2 z-10"
-            title="تلقيم السلاح"
-          >
-            <span className="text-[11px]">🔄</span>
-          </button>
-        </div>
       </div>
     </div>
 
@@ -527,8 +627,8 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       </div>
 
-      {/* Floating Live Compact Scoreboard Under Health Bar (Absolute position) */}
-      {sortedPlayers.length > 0 && (
+      {/* Floating Live Compact Scoreboard Under Health Bar (Toggleable to keep HUD clutter-free) */}
+      {sortedPlayers.length > 0 && showMiniLeaderboard && (
         <div className="absolute top-24 left-3 flex flex-col gap-1 pointer-events-auto bg-neutral-950/60 border border-white/10 backdrop-blur-md rounded-2xl p-2.5 w-[170px] text-white shadow-2xl transition-all z-20">
           <div className="flex items-center justify-between border-b border-white/10 pb-1 mb-1 text-[9px] uppercase tracking-wider font-black text-neutral-300">
             <span>🏆 الترتيب الحالي</span>

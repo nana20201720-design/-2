@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { soundManager } from '../../audio/soundManager';
 import { haptics } from '../../utils/haptics';
+import { TacticalItemGraphic } from './TacticalItemGraphic';
 
 interface ArmorItem {
   id: string;
@@ -166,22 +167,7 @@ export const ArmorWorkshop: React.FC = () => {
               transition={{ duration: 0.2 }}
               className="relative w-28 h-28 rounded-2xl bg-gradient-to-br from-[#18291c] to-[#0c160f] border-2 border-blue-500/40 flex flex-col items-center justify-center shadow-2xl"
             >
-              <svg
-                width="64"
-                height="64"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={currentArmor.isEquipped ? 'text-blue-400 filter drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]' : 'text-gray-500'}
-              >
-                <path d="M12 2C8 2 5 4 4 6v5c0 5 3.5 9 8 11 4.5-2 8-6 8-11V6c-1-2-4-4-8-4z" />
-                <path d="M12 6v12" />
-                <path d="M7 10h10" />
-                <circle cx="12" cy="12" r="3" fill="currentColor" fillOpacity="0.2" />
-              </svg>
+              <TacticalItemGraphic id={currentArmor.id} className="w-20 h-20 filter drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]" />
 
               {/* Deflection Spark Burst */}
               {isTestingDeflection && (
@@ -316,21 +302,7 @@ export const ArmorWorkshop: React.FC = () => {
               </div>
 
               <div className="h-14 flex items-center justify-center bg-[#080d09] rounded-xl border border-[#1d2d20] my-1">
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={armor.isEquipped ? 'text-blue-400' : 'text-gray-500'}
-                >
-                  <path d="M12 2C8 2 5 4 4 6v5c0 5 3.5 9 8 11 4.5-2 8-6 8-11V6c-1-2-4-4-8-4z" />
-                  <path d="M12 6v12" />
-                  <path d="M7 10h10" />
-                </svg>
+                <TacticalItemGraphic id={armor.id} className="w-12 h-12" />
               </div>
 
               <div>

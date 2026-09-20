@@ -18,13 +18,15 @@ import { GameEngine, GameEngineEvents } from '../game/gameEngine';
 import { HUD } from './HUD';
 import { TouchControls } from './TouchControls';
 import { LiveMatchLeaderboard } from './LiveMatchLeaderboard';
-import { PauseModal } from './PauseModal';
+import { InGame3DPauseModal } from './InGame3DPauseModal';
+import { TacticalHologram3DWheel } from './TacticalHologram3DWheel';
 import { GameOverModal } from './GameOverModal';
 import { soundManager } from '../audio/soundManager';
 import { settingsManager } from '../utils/settingsManager';
 import { statsManager } from '../utils/statsManager';
 import { playerStatsManager } from '../utils/playerStatsManager';
 import { soldierProgressionManager } from '../utils/soldierProgressionManager';
+import { matchSyncManager } from '../utils/matchSyncManager';
 import { haptics } from '../utils/haptics';
 import { GameMode, PlayerCustomization, GameSettings, CharacterState, KillFeedItem, NearbyWeaponInfo } from '../types';
 
@@ -32,6 +34,7 @@ interface BattleArenaProps {
   mode?: GameMode;
   isSpectator?: boolean;
   arenaTitle?: string;
+  roomCode?: string;
   onQuit: () => void;
   customization?: Partial<PlayerCustomization>;
 }
@@ -40,6 +43,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   mode = 'deathmatch',
   isSpectator = false,
   arenaTitle = 'حلبة البؤرة (Outpost)',
+  roomCode = 'arena_global_match',
   onQuit,
   customization,
 }) => {
@@ -51,6 +55,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const [isPaused, setIsPaused] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isTacticalWheelOpen, setIsTacticalWheelOpen] = useState(false);
 
   // Spectator / Camera toggle state
   const [spectatorMode, setSpectatorMode] = useState(isSpectator);
@@ -152,6 +157,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     charAvatarIndex: customization?.charAvatarIndex || 1,
     primaryWeapon: (savedSettings.equippedPrimaryWeapon as any) || 'sniper',
     secondaryWeapon: (savedSettings.equippedSecondaryWeapon as any) || 'dual_uzi',
+    gltfModelUrl: customization?.gltfModelUrl || savedSettings.gltfModelUrl,
     skills: customization?.skills || soldierProgressionManager.getProgression().skills,
   };
 
@@ -267,6 +273,11 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       engine.setActivePlayerIndex(0);
     }
 
+    // Enable 3D Three.js environment renderer for full 3D interactive map
+    if (containerRef.current) {
+      engine.enable3DRenderer(containerRef.current);
+    }
+
     engine.start();
     engineRef.current = engine;
     setIsPaused(false);
@@ -303,20 +314,33 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     };
   }, []);
 
-  // Initialize game on mount after frame attachment
+  // Initialize game and real-time multiplayer sync on mount
   useEffect(() => {
     const frameId = requestAnimationFrame(() => {
       initEngine();
     });
 
+    // Connect real-time match sync listener
+    matchSyncManager.startMatchSync(
+      roomCode,
+      activeCustomization.playerName,
+      activeCustomization.camoColor,
+      (remotePlayers) => {
+        if (engineRef.current) {
+          engineRef.current.syncRemotePlayers(remotePlayers);
+        }
+      }
+    );
+
     return () => {
       cancelAnimationFrame(frameId);
+      matchSyncManager.stopMatchSync();
       if (engineRef.current) {
         engineRef.current.stop();
         engineRef.current = null;
       }
     };
-  }, [initEngine]);
+  }, [initEngine, roomCode]);
 
   // Sync state from engine to React HUD (using requestAnimationFrame ticker)
   useEffect(() => {
@@ -331,6 +355,8 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           const currentP = engineRef.current.getPlayerState();
           if (currentP) {
             setPlayerState({ ...currentP });
+            // Broadcast local player movement & health to Firebase Realtime Match state
+            matchSyncManager.sendLocalPlayerState(currentP);
           }
           const mInfo = engineRef.current.getMatchInfo();
           if (mInfo) {
@@ -348,7 +374,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     return () => cancelAnimationFrame(animId);
   }, [isPaused, isGameOver]);
 
-  // Keyboard shortcut for Quick Ground Weapon Swap [F]
+  // Keyboard shortcut for Quick Ground Weapon Swap [F] and Tactical Hologram Wheel [T / Q]
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'KeyF') {
@@ -357,6 +383,12 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           if (didSwap) {
             haptics.medium();
           }
+        }
+      } else if (e.code === 'KeyT' || e.code === 'KeyQ') {
+        if (!isGameOver) {
+          setIsTacticalWheelOpen(prev => !prev);
+          soundManager.playButtonClick();
+          haptics.light();
         }
       }
     };
@@ -550,10 +582,12 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
         onSwapWeapon={handleSwapWeapon}
         nearbyWeapon={nearbyWeapon}
         onSelectPlayer={handleSelectPlayer}
+        onOpenTacticalWheel={() => {
+          soundManager.playButtonClick();
+          haptics.light();
+          setIsTacticalWheelOpen(true);
+        }}
       />
-
-      {/* Live Match Leaderboard */}
-      <LiveMatchLeaderboard players={matchInfo.players} />
 
       {/* Dual Joystick & Touch / Keyboard Controls */}
       <TouchControls
@@ -562,21 +596,40 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
         grenadesCount={playerState?.grenades ?? 2}
       />
 
-      {/* Pause Modal */}
-      {isPaused && (
-        <PauseModal
-          onResume={handleResume}
-          onRestart={handleRestart}
-          onQuit={() => {
-            if (engineRef.current) {
-              engineRef.current.stop();
-            }
-            onQuit();
-          }}
-          isMuted={isMuted}
-          onToggleMute={handleToggleMute}
-        />
-      )}
+      {/* 3D Holographic In-Game Tactical Weapon & Boost Wheel */}
+      <TacticalHologram3DWheel
+        isOpen={isTacticalWheelOpen}
+        onClose={() => setIsTacticalWheelOpen(false)}
+        currentWeapon={playerState?.weapons[playerState?.currentWeaponIndex || 0] || 'pistol'}
+        secondaryWeapon={playerState?.weapons[1]}
+        health={playerState?.health || 100}
+        maxHealth={playerState?.maxHealth || 100}
+        fuel={playerState?.fuel || 100}
+        onSelectWeapon={(w) => {
+          if (engineRef.current) {
+            engineRef.current.setPlayerWeaponDirectly(w);
+          }
+        }}
+        onUseTacticalBoost={(type) => {
+          if (engineRef.current) {
+            engineRef.current.applyTacticalBoost(type);
+          }
+        }}
+      />
+
+      {/* In-Game 3D Pause Modal with interactive 3D ThreeSoldierCanvas preview */}
+      <InGame3DPauseModal
+        isOpen={isPaused}
+        player={playerState}
+        onResume={handleResume}
+        onRestart={handleRestart}
+        onQuit={() => {
+          if (engineRef.current) {
+            engineRef.current.stop();
+          }
+          onQuit();
+        }}
+      />
 
       {/* Game Over Modal */}
       {isGameOver && (

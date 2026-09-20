@@ -418,10 +418,10 @@ export const CustomRoomsLobby: React.FC<CustomRoomsLobbyProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleShareLobbyLink}
-              className="px-3.5 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-neutral-950 font-black rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition-all animate-pulse"
+              className="px-3.5 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-neutral-950 font-black rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition-all"
             >
               <Share2 className="w-4 h-4" />
-              <span>{copiedShareLink ? 'تم نسخ الرابط! 🔗' : 'مشاركة الغرفة 🔗'}</span>
+              <span>{copiedShareLink ? 'تم نسخ الرابط! 🔗' : `نسخ رابط دعوة ${activeRoom.mode.toUpperCase()} 🔗`}</span>
             </button>
 
             <div className="bg-neutral-950 border border-amber-500/40 rounded-2xl px-3.5 py-1.5 flex items-center gap-2">
@@ -533,58 +533,74 @@ export const CustomRoomsLobby: React.FC<CustomRoomsLobbyProps> = ({
           </div>
         )}
 
-        {/* ONLINE FRIENDS QUICK INVITE PANEL */}
+        {/* ONLINE FRIENDS QUICK INVITE/JOIN PANEL */}
         {friends.length > 0 && (
-          <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-3">
-            <h4 className="text-xs font-black text-white mb-2 flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-400 fill-current" />
-              <span>دعوة أصدقائك المتصلين لهذه الغرفة ⚡</span>
+          <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4">
+            <h4 className="text-sm font-black text-white mb-3 flex items-center gap-2">
+              <Users className="w-4 h-4 text-emerald-400" />
+              <span>الأصدقاء المتصلون الآن ({friends.filter(f => f.status !== 'offline').length})</span>
             </h4>
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {friends.map((friend) => {
-                const isOnline = friend.status === 'online' || friend.status === 'in_game';
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {friends.filter(f => f.status !== 'offline').map((friend) => {
+                const isInGame = friend.status === 'in_game' && friend.currentRoomCode;
                 const isAlreadyInRoom = activeRoom.players.some((p) => p.uid === friend.uid);
                 const isInvited = invitedUids[friend.uid];
 
                 return (
                   <div
                     key={friend.uid}
-                    className="bg-neutral-900 border border-neutral-800 rounded-xl p-2 flex items-center gap-2 shrink-0 text-xs"
+                    className="bg-neutral-900 border border-neutral-800 rounded-xl p-3 flex items-center justify-between gap-2"
                   >
-                    <div className="relative">
-                      <div
-                        className="w-6 h-6 rounded-lg flex items-center justify-center font-black text-neutral-950 text-[10px]"
-                        style={{ backgroundColor: friend.camoColor || '#15803d' }}
-                      >
-                        {friend.displayName.charAt(0).toUpperCase()}
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <div
+                          className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-neutral-950 text-xs"
+                          style={{ backgroundColor: friend.camoColor || '#15803d' }}
+                        >
+                          {friend.displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full absolute -bottom-0.5 -right-0.5 border border-neutral-900 ${
+                            friend.status === 'in_game' ? 'bg-amber-500' : 'bg-emerald-500'
+                          }`}
+                        />
                       </div>
-                      <span
-                        className={`w-2 h-2 rounded-full absolute -bottom-0.5 -right-0.5 border border-neutral-950 ${
-                          isOnline ? 'bg-emerald-500' : 'bg-neutral-600'
-                        }`}
-                      />
+                      <div className="flex flex-col">
+                        <span className="font-bold text-white text-xs truncate max-w-[90px]">{friend.displayName}</span>
+                        <span className="text-[9px] text-neutral-400">
+                          {friend.status === 'in_game' ? 'في معركة' : 'في اللوبي'}
+                        </span>
+                      </div>
                     </div>
 
-                    <span className="font-bold text-white max-w-[90px] truncate">{friend.displayName}</span>
-
-                    {isAlreadyInRoom ? (
-                      <span className="text-[10px] text-emerald-400 font-bold px-2 py-0.5 bg-emerald-500/10 rounded-lg">
-                        في الغرفة ✓
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleSendInviteToFriend(friend.uid)}
-                        disabled={isInvited}
-                        className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${
-                          isInvited
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-amber-500 hover:bg-amber-400 text-neutral-950 shadow-sm'
-                        }`}
-                      >
-                        <Zap className="w-3 h-3 fill-current" />
-                        <span>{isInvited ? 'تمت الدعوة ✓' : 'دعوة ⚡'}</span>
-                      </button>
-                    )}
+                    <div className="flex gap-1.5">
+                      {isInGame && !isAlreadyInRoom ? (
+                        <button
+                          onClick={() => handleJoinRoom(friend.currentRoomCode)}
+                          className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black rounded-lg text-[10px] flex items-center gap-1 shadow-sm transition-all"
+                        >
+                          <Play className="w-3 h-3" />
+                          <span>انضمام سريع 🚀</span>
+                        </button>
+                      ) : !isAlreadyInRoom ? (
+                        <button
+                          onClick={() => handleSendInviteToFriend(friend.uid)}
+                          disabled={isInvited}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${
+                            isInvited
+                              ? 'bg-neutral-800 text-neutral-500 border border-neutral-700'
+                              : 'bg-amber-500 hover:bg-amber-400 text-neutral-950 shadow-sm'
+                          }`}
+                        >
+                          <Zap className="w-3 h-3 fill-current" />
+                          <span>{isInvited ? 'تمت الدعوة ✓' : 'دعوة ⚡'}</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-emerald-400 font-bold px-2 py-1.5 bg-emerald-500/10 rounded-lg">
+                          معك في الغرفة ✓
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -764,6 +780,7 @@ export const CustomRoomsLobby: React.FC<CustomRoomsLobbyProps> = ({
                   { id: '1v1', label: '1 ضد 1 (مبارزة)' },
                   { id: '2v2', label: '2 ضد 2 (فريقين)' },
                   { id: '3v3', label: '3 ضد 3 (ساحة كاملة)' },
+                  { id: '6v6', label: '6 ضد 6 (معركة كبرى)' },
                   { id: 'deathmatch', label: 'الجميع ضد الجميع' },
                 ].map((m) => (
                   <button

@@ -81,11 +81,13 @@ export interface UserFriendProfile {
   uid: string;
   displayName: string;
   email?: string | null;
-  status: 'online' | 'in_game' | 'offline';
+  status: 'online' | 'in_game' | 'in_store' | 'offline';
   lastSeen?: number;
   stats?: PlayerLifetimeStats;
   currentRoomCode?: string;
   camoColor?: string;
+  customization?: any;
+  clanTag?: string;
 }
 
 export interface RoomPlayer {
@@ -97,13 +99,14 @@ export interface RoomPlayer {
   isReady: boolean;
   kills?: number;
   deaths?: number;
+  clanTag?: string;
 }
 
 export interface CustomRoom {
   roomCode: string;
   hostUid: string;
   hostName: string;
-  mode: '1v1' | '2v2' | '3v3' | 'deathmatch';
+  mode: '1v1' | '2v2' | '3v3' | '6v6' | 'deathmatch';
   mapName: string;
   maxPlayers: number;
   status: 'lobby' | 'playing' | 'ended';
@@ -114,7 +117,7 @@ export interface CustomRoom {
 
 export const friendsAndRoomsManager = {
   // --- ONLINE STATUS ---
-  async updateOnlineStatus(status: 'online' | 'in_game' | 'offline', currentRoomCode: string = '') {
+  async updateOnlineStatus(status: 'online' | 'in_game' | 'in_store' | 'offline', currentRoomCode: string = '') {
     if (!auth.currentUser) return;
     const uid = auth.currentUser.uid;
     try {
@@ -208,8 +211,11 @@ export const friendsAndRoomsManager = {
     if (!auth.currentUser) return () => {};
     const uid = auth.currentUser.uid;
 
+    const friendUnsubs = new Map<string, () => void>();
+    const friendMap = new Map<string, UserFriendProfile>();
+
     const userRef = doc(db, 'users', uid);
-    return onSnapshot(userRef, async (docSnap) => {
+    const mainUnsub = onSnapshot(userRef, (docSnap) => {
       if (!docSnap.exists()) {
         callback([]);
         return;
@@ -218,33 +224,72 @@ export const friendsAndRoomsManager = {
       const friendUids: string[] = data.friends || [];
 
       if (friendUids.length === 0) {
+        friendUnsubs.forEach((unsub) => unsub());
+        friendUnsubs.clear();
+        friendMap.clear();
         callback([]);
         return;
       }
 
-      try {
-        const friendProfiles: UserFriendProfile[] = [];
-        for (const fUid of friendUids) {
-          const fDoc = await getDoc(doc(db, 'users', fUid));
-          if (fDoc.exists()) {
-            const fData = fDoc.data();
-            friendProfiles.push({
-              uid: fUid,
-              displayName: fData.displayName || fData.customization?.playerName || 'مقاتل',
-              email: fData.email,
-              status: fData.status || 'offline',
-              lastSeen: fData.lastSeen || 0,
-              stats: fData.stats,
-              currentRoomCode: fData.currentRoomCode || '',
-              camoColor: fData.customization?.camoColor || '#15803d',
-            });
-          }
+      // Cleanup removed friends
+      friendUnsubs.forEach((unsub, fUid) => {
+        if (!friendUids.includes(fUid)) {
+          unsub();
+          friendUnsubs.delete(fUid);
+          friendMap.delete(fUid);
         }
-        callback(friendProfiles);
-      } catch (e) {
-        console.error('Failed listening to friends:', e);
-      }
+      });
+
+      // Attach listener for each friend
+      friendUids.forEach((fUid) => {
+        if (!friendUnsubs.has(fUid)) {
+          const fRef = doc(db, 'users', fUid);
+          const fUnsub = onSnapshot(
+            fRef,
+            (fSnap) => {
+              if (fSnap.exists()) {
+                const fData = fSnap.data();
+                const now = Date.now();
+                const isStale = fData.lastSeen ? now - fData.lastSeen > 120000 : false;
+                const rawStatus = fData.status || 'offline';
+                const status: 'online' | 'in_game' | 'in_store' | 'offline' = isStale
+                  ? 'offline'
+                  : rawStatus;
+
+                friendMap.set(fUid, {
+                  uid: fUid,
+                  displayName: fData.displayName || fData.customization?.playerName || 'مقاتل',
+                  email: fData.email,
+                  status,
+                  lastSeen: fData.lastSeen || 0,
+                  stats: fData.stats,
+                  currentRoomCode: fData.currentRoomCode || '',
+                  camoColor: fData.customization?.camoColor || '#15803d',
+                  customization: fData.customization,
+                });
+              } else {
+                friendMap.delete(fUid);
+              }
+              callback(Array.from(friendMap.values()));
+            },
+            (err) => {
+              console.warn('Error listening to friend doc:', fUid, err);
+            }
+          );
+          friendUnsubs.set(fUid, fUnsub);
+        }
+      });
+
+      callback(Array.from(friendMap.values()));
+    }, (err) => {
+      console.warn('Error listening to my user doc:', err);
     });
+
+    return () => {
+      mainUnsub();
+      friendUnsubs.forEach((unsub) => unsub());
+      friendUnsubs.clear();
+    };
   },
 
   // --- CUSTOM ROOMS SYSTEM ---
@@ -258,7 +303,7 @@ export const friendsAndRoomsManager = {
   },
 
   async createRoom(
-    mode: '1v1' | '2v2' | '3v3' | 'deathmatch',
+    mode: '1v1' | '2v2' | '3v3' | '6v6' | 'deathmatch',
     mapName: string = 'Dust Arena',
     playerName: string = 'المضيف',
     camoColor: string = '#15803d',
@@ -270,13 +315,15 @@ export const friendsAndRoomsManager = {
 
     let maxPlayers = 2;
     if (mode === '2v2') maxPlayers = 4;
-    else if (mode === '3v3' || mode === 'deathmatch') maxPlayers = 6;
+    else if (mode === '3v3') maxPlayers = 6;
+    else if (mode === '6v6') maxPlayers = 12;
+    else if (mode === 'deathmatch') maxPlayers = 6;
 
     const initialPlayer: RoomPlayer = {
       uid,
       displayName: playerName,
       camoColor,
-      team: mode === 'deathmatch' ? 'ffa' : 'red',
+      team: mode === 'deathmatch' || mode === '6v6' ? 'ffa' : 'red',
       isHost: true,
       isReady: true,
     };
@@ -492,6 +539,18 @@ export const friendsAndRoomsManager = {
     } catch (e) {
       handleFirestoreError(e, OperationType.LIST, path);
     }
+  },
+
+  listenToPublicRooms(callback: (rooms: CustomRoom[]) => void) {
+    const roomsRef = collection(db, 'rooms');
+    const q = query(roomsRef, where('status', 'in', ['lobby', 'playing']));
+    return onSnapshot(q, (snapshot) => {
+      const rooms: CustomRoom[] = [];
+      snapshot.forEach((d) => {
+        rooms.push(d.data() as CustomRoom);
+      });
+      callback(rooms.sort((a, b) => b.createdAt - a.createdAt));
+    });
   },
 
   getShareableLobbyUrl(roomCode: string): string {

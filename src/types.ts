@@ -67,6 +67,7 @@ export interface PlayerCustomization {
   charAvatarIndex?: number;
   primaryWeapon?: WeaponType;
   secondaryWeapon?: WeaponType;
+  gltfModelUrl?: string;
   skills?: SoldierSkills;
 }
 
@@ -82,6 +83,16 @@ export interface Platform extends Rect {
   oneWay?: boolean; // can jump through from below
   color?: string;
   label?: string;
+}
+
+export interface TacticalCover extends Rect {
+  id: string;
+  type: 'sandbag_bunker' | 'steel_barrier' | 'concrete_jersey' | 'cargo_container' | 'missile_pod';
+  labelAr?: string;
+  bulletProof: boolean;
+  health?: number;
+  maxHealth?: number;
+  destroyed?: boolean;
 }
 
 export interface Projectile {
@@ -224,6 +235,8 @@ export interface CharacterState {
   isCrouching?: boolean;
   meleeTimer?: number;
   inBush?: boolean;
+  isInCover?: boolean;
+  coverType?: string;
   
   // Health & Fuel
   health: number;
@@ -266,6 +279,7 @@ export interface CharacterState {
   trailColor?: string;
   skinTone: string;
   charAvatarIndex?: number;
+  gltfModelUrl?: string;
   recoilOffset: number;
   muzzleFlashTimer: number;
   hitFlinchTimer: number;

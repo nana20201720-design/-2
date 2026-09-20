@@ -19,6 +19,7 @@ export interface TacticalSettings {
   fps: 30 | 60 | 120;
   graphicsQuality: 'low' | 'medium' | 'high' | 'ultra';
   batterySaver: boolean;
+  performanceMode?: boolean; // Toggles ultra-cheap materials/meshes specifically on mobile
   playerName: string;
   playerRank: number;
   coins: number;
@@ -32,12 +33,24 @@ export interface TacticalSettings {
   equippedTrail: string;
   equippedPrimaryWeapon: string;
   equippedSecondaryWeapon: string;
+  gltfModelUrl?: string;
+  weaponSkins?: Record<string, string>;
+  armoryLightingMode?: 'pbr' | 'toon';
+  armoryEnvironment?: 'training_range' | 'night_ops' | 'cyber_tech' | 'desert_outpost';
+  previewEnvironment?: 'training_grounds' | 'military_bunker' | 'tech_lab';
+  holographicHUD?: boolean;
+  enable3DCharactersInBattle?: boolean;
+  isLandscapeMode?: boolean;
   controlLayout: {
     grenadeBtn: { bottom: number; left: number };
     meleeBtn: { bottom: number; right: number };
     shootBtn: { bottom: number; right: number };
   };
   isDraggingControls?: boolean;
+  unlockedWeapons?: string[];
+  hasPremiumPass?: boolean;
+  claimedPassRewards?: string[];
+  killFeedIconStyle: 'classic' | 'bold' | 'neon' | 'minimalist';
 }
 
 const SETTINGS_STORAGE_KEY = 'mini_militia_tactical_settings_v1';
@@ -58,10 +71,11 @@ export const DEFAULT_SETTINGS: TacticalSettings = {
   fps: 120,
   graphicsQuality: 'high',
   batterySaver: false,
+  performanceMode: false,
   playerName: 'العقيد صخر',
   playerRank: 28,
-  coins: 14250,
-  gems: 340,
+  coins: 1500,
+  gems: 50,
   equippedSkin: 'woodland_camo',
   equippedHeadgear: 'camo_helmet',
   equippedArmor: 'molle_vest',
@@ -69,12 +83,22 @@ export const DEFAULT_SETTINGS: TacticalSettings = {
   equippedBeard: 'stubble',
   equippedJetpack: 'military_dual',
   equippedTrail: 'neon_purple',
-  equippedPrimaryWeapon: 'sniper',
-  equippedSecondaryWeapon: 'dual_uzi',
+  equippedPrimaryWeapon: 'm4_rifle',
+  equippedSecondaryWeapon: 'm4_rifle',
+  unlockedWeapons: ['m4_rifle'],
+  hasPremiumPass: false,
+  claimedPassRewards: [],
+  armoryLightingMode: 'pbr',
+  armoryEnvironment: 'training_range',
+  previewEnvironment: 'training_grounds',
+  holographicHUD: true,
+  enable3DCharactersInBattle: false,
+  isLandscapeMode: false,
+  killFeedIconStyle: 'classic',
   controlLayout: {
-    grenadeBtn: { bottom: 24, left: 160 }, // bottom-6, left-40
-    meleeBtn: { bottom: 24, right: 160 }, // bottom-6, right-40
-    shootBtn: { bottom: 160, right: 32 }, // bottom-40, right-8
+    grenadeBtn: { bottom: 12, left: 80 },
+    meleeBtn: { bottom: 12, right: 80 },
+    shootBtn: { bottom: 12, right: 160 },
   },
   isDraggingControls: false,
 };

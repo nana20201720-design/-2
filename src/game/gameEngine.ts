@@ -16,10 +16,14 @@ import { ARENA_MAP, MapData, MAP_WIDTH, MAP_HEIGHT } from './mapData';
 import { WEAPON_CONFIGS, GRENADE_CONFIG } from './weapons';
 import { ParticleSystem } from './particles';
 import { GameRenderer } from './renderer';
+import { ThreeGameRenderer } from './threeGameRenderer';
 import { BotAIController } from './botAI';
 import { soundManager } from '../audio/soundManager';
 import { soldierProgressionManager } from '../utils/soldierProgressionManager';
 import { haptics } from '../utils/haptics';
+import { performanceOptimizer } from '../utils/performanceOptimizer';
+import { RemotePlayerSyncState } from '../utils/matchSyncManager';
+import { settingsManager } from '../utils/settingsManager';
 
 export interface GameEngineEvents {
   onKillFeed: (item: KillFeedItem) => void;
@@ -53,8 +57,17 @@ export class GameEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private renderer: GameRenderer;
+  private threeRenderer: ThreeGameRenderer | null = null;
   private particles: ParticleSystem;
   private botAI: BotAIController;
+
+  public enable3DRenderer(container: HTMLDivElement) {
+    if (this.threeRenderer) {
+      this.threeRenderer.cleanup();
+    }
+    this.threeRenderer = new ThreeGameRenderer(container);
+    this.threeRenderer.build3DOutpostLevel(this.map);
+  }
 
   // Game Entities
   private map: MapData;
@@ -239,6 +252,54 @@ export class GameEngine {
     this.players.push(p4);
   }
 
+  public syncRemotePlayers(remoteStates: RemotePlayerSyncState[]) {
+    if (!remoteStates || remoteStates.length === 0) return;
+
+    remoteStates.forEach((remote) => {
+      // Find existing remote player in match
+      let matchPlayer = this.players.find((p) => p.id === remote.uid || p.name === remote.name);
+
+      if (matchPlayer && !matchPlayer.isPlayer) {
+        // Smooth linear interpolation (Lerp) for position and velocities
+        matchPlayer.x += (remote.x - matchPlayer.x) * 0.4;
+        matchPlayer.y += (remote.y - matchPlayer.y) * 0.4;
+        matchPlayer.vx = remote.vx;
+        matchPlayer.vy = remote.vy;
+        matchPlayer.aimAngle = remote.aimAngle;
+        matchPlayer.facingRight = Math.cos(remote.aimAngle) >= 0;
+        matchPlayer.health = remote.health;
+        matchPlayer.fuel = remote.fuel;
+        matchPlayer.isJetpacking = remote.isJetpacking;
+        matchPlayer.isDead = remote.isDead;
+        matchPlayer.camoColor = remote.camoColor;
+        matchPlayer.kills = remote.kills;
+        matchPlayer.deaths = remote.deaths;
+
+        // Sync weapon if available
+        const wType = remote.currentWeapon as WeaponType;
+        if (wType && WEAPON_CONFIGS[wType]) {
+          if (!matchPlayer.weapons.includes(wType)) {
+            matchPlayer.weapons.push(wType);
+          }
+          matchPlayer.currentWeaponIndex = matchPlayer.weapons.indexOf(wType);
+        }
+      } else if (!matchPlayer && this.players.length < 8) {
+        // Dynamically join new remote player into arena
+        const newRemote = this.createCharacter(
+          remote.uid,
+          remote.name,
+          false,
+          'ffa',
+          { camoColor: remote.camoColor }
+        );
+        newRemote.x = remote.x;
+        newRemote.y = remote.y;
+        newRemote.health = remote.health;
+        this.players.push(newRemote);
+      }
+    });
+  }
+
   private respawnAt(char: CharacterState, spawnIndex: number) {
     const spawns = this.map.playerSpawns;
     const chosen = spawns[spawnIndex % spawns.length];
@@ -332,6 +393,7 @@ export class GameEngine {
       trailColor: customization?.trailColor || (isPlayer ? 'neon_purple' : 'arc_plasma'),
       skinTone: customization?.skinTone || '#fbb587',
       charAvatarIndex: customization?.charAvatarIndex || (isPlayer ? 1 : 2),
+      gltfModelUrl: customization?.gltfModelUrl,
       recoilOffset: 0,
       muzzleFlashTimer: 0,
       hitFlinchTimer: 0,
@@ -477,6 +539,10 @@ export class GameEngine {
       this.animFrameId = null;
     }
     soundManager.stopJetpack();
+    if (this.threeRenderer) {
+      this.threeRenderer.cleanup();
+      this.threeRenderer = null;
+    }
   }
 
   public setPaused(paused: boolean) {
@@ -490,6 +556,9 @@ export class GameEngine {
     this.canvas.width = width;
     this.canvas.height = height;
     this.renderer.setDimensions(width, height);
+    if (this.threeRenderer) {
+      this.threeRenderer.setDimensions(width, height);
+    }
   }
 
   // --- CONTROLS API ---
@@ -810,11 +879,13 @@ export class GameEngine {
     }
   }
 
-  // --- CORE GAME LOOP ---
+  // --- CORE GAME LOOP WITH PERFORMANCE OPTIMIZATION LAYER ---
   private loop = (currentTime: number) => {
     if (!this.isRunning) return;
 
-    const dt = Math.min(0.05, (currentTime - this.lastTime) / 1000);
+    performanceOptimizer.reportFrameTime(currentTime);
+    const rawDt = (currentTime - this.lastTime) / 1000;
+    const dt = performanceOptimizer.clampDeltaTime(rawDt);
     this.lastTime = currentTime;
 
     if (!this.isPaused) {
@@ -1226,6 +1297,21 @@ export class GameEngine {
     // Dynamic height based on crouch
     const curHeight = char.isCrouching ? 32 : char.height;
 
+    // Check 3D Tactical Cover Status
+    char.isInCover = false;
+    if (char.isCrouching && this.map.tacticalCovers) {
+      for (const cover of this.map.tacticalCovers) {
+        if (cover.destroyed) continue;
+        const dx = Math.abs((char.x + char.width / 2) - (cover.x + cover.width / 2));
+        const dy = Math.abs((char.y + curHeight) - (cover.y + cover.height));
+        if (dx <= cover.width / 2 + 30 && dy <= 36) {
+          char.isInCover = true;
+          char.coverType = cover.type;
+          break;
+        }
+      }
+    }
+
     // Tentative position
     let newX = char.x + char.vx * dt;
     let newY = char.y + char.vy * dt;
@@ -1326,6 +1412,30 @@ export class GameEngine {
             newX = plat.x + plat.width;
             // Floaty elastic bounce off walls when flying
             char.vx = char.isJetpacking ? -char.vx * 0.35 : 0;
+          }
+          // Penetration Depth Fallback: Push character out along smallest overlap vector
+          else {
+            const pushTop = (newY + curHeight) - plat.y;
+            const pushBottom = (plat.y + plat.height) - newY;
+            const pushLeft = (newX + char.width) - plat.x;
+            const pushRight = (plat.x + plat.width) - newX;
+
+            const minOverlap = Math.min(pushTop, pushBottom, pushLeft, pushRight);
+
+            if (minOverlap === pushTop) {
+              newY = plat.y - curHeight;
+              char.vy = 0;
+              char.isGrounded = true;
+            } else if (minOverlap === pushBottom) {
+              newY = plat.y + plat.height;
+              char.vy = 0;
+            } else if (minOverlap === pushLeft) {
+              newX = plat.x - char.width;
+              char.vx = 0;
+            } else if (minOverlap === pushRight) {
+              newX = plat.x + plat.width;
+              char.vx = 0;
+            }
           }
         }
       }
@@ -1510,35 +1620,50 @@ export class GameEngine {
       const nextX = p.x + p.vx * dt;
       const nextY = p.y + p.vy * dt;
 
-      // Platform Collision
+      // Continuous Raycast Sub-Stepping: Sample along path from (p.x, p.y) to (nextX, nextY)
+      // to ensure fast bullets (e.g. sniper/rifle) NEVER tunnel or penetrate solid walls/platforms!
+      const travelDist = Math.hypot(p.vx * dt, p.vy * dt);
+      const steps = Math.max(1, Math.min(12, Math.ceil(travelDist / 8)));
       let hitPlatform = false;
-      for (const plat of this.map.platforms) {
-        if (plat.type === 'hazard') continue;
-        if (plat.oneWay) continue; // Bullets pass through one-way platforms
 
-        if (
-          nextX > plat.x &&
-          nextX < plat.x + plat.width &&
-          nextY > plat.y &&
-          nextY < plat.y + plat.height
-        ) {
-          hitPlatform = true;
-          if (p.weaponType === 'grenade' && (p.bounces || 0) > 0) {
-            p.bounces!--;
-            p.vy = -p.vy * GRENADE_CONFIG.bounciness;
-            p.vx *= GRENADE_CONFIG.friction;
-            soundManager.playGrenadeBounce();
-          } else if (p.weaponType === 'rocket') {
-            this.detonateExplosive(p);
-            this.projectiles.splice(i, 1);
-          } else {
-            const normalX = p.vx > 0 ? -1 : 1;
-            const normalY = p.vy > 0 ? -1 : 1;
-            this.particles.addSurfaceImpact(p.x, p.y, plat.type, normalX, normalY);
-            this.projectiles.splice(i, 1);
+      for (let step = 1; step <= steps; step++) {
+        const sampleX = p.x + (p.vx * dt * step) / steps;
+        const sampleY = p.y + (p.vy * dt * step) / steps;
+
+        // Platform Collision Check along sampled bullet path
+        for (const plat of this.map.platforms) {
+          if (plat.type === 'hazard') continue;
+          if (plat.oneWay) continue; // Bullets pass through one-way platforms
+
+          if (
+            sampleX >= plat.x &&
+            sampleX <= plat.x + plat.width &&
+            sampleY >= plat.y &&
+            sampleY <= plat.y + plat.height
+          ) {
+            hitPlatform = true;
+            p.x = sampleX;
+            p.y = sampleY;
+
+            if (p.weaponType === 'grenade' && (p.bounces || 0) > 0) {
+              p.bounces!--;
+              p.vy = -p.vy * GRENADE_CONFIG.bounciness;
+              p.vx *= GRENADE_CONFIG.friction;
+              soundManager.playGrenadeBounce();
+            } else if (p.weaponType === 'rocket') {
+              this.detonateExplosive(p);
+              this.projectiles.splice(i, 1);
+            } else {
+              const normalX = p.vx > 0 ? -1 : 1;
+              const normalY = p.vy > 0 ? -1 : 1;
+              this.particles.addSurfaceImpact(sampleX, sampleY, plat.type, normalX, normalY);
+              this.projectiles.splice(i, 1);
+            }
+            break;
           }
-          break;
         }
+
+        if (hitPlatform) break;
       }
 
       if (hitPlatform) continue;
@@ -1771,6 +1896,17 @@ export class GameEngine {
       finalDamage = Math.max(1, Math.round(damage * (1 - reduction)));
     }
 
+    // Apply 3D Tactical Cover Protection (85% reduction when crouched behind cover)
+    if (victim.isInCover && weapon !== 'hazard') {
+      finalDamage *= 0.15;
+      this.particles.addFloatingText(
+        victim.x + victim.width / 2,
+        victim.y - 28,
+        '🛡️ احتماء! (-85%)',
+        '#10b981'
+      );
+    }
+
     victim.health -= finalDamage;
     victim.timeSinceLastDamage = 0;
     victim.hitFlinchTimer = 0.15;
@@ -1788,6 +1924,21 @@ export class GameEngine {
       }
     }
 
+    // Dynamic Hit Marker Overlay & Audio Feedback for Local Player Attacker
+    const attacker = this.players.find(p => p.id === attackerId);
+    if (attacker && attacker.isPlayer && victim.id !== attacker.id) {
+      soundManager.playHitMarker();
+      this.renderer.addHitMarker(
+        victim.x + victim.width / 2,
+        victim.y + victim.height / 2,
+        isHeadshot,
+        Math.round(finalDamage)
+      );
+      if (this.settings.haptics && navigator.vibrate) {
+        navigator.vibrate(isHeadshot ? [30, 20, 40] : 25);
+      }
+    }
+
     // Check Death
     if (victim.health <= 0) {
       victim.health = 0;
@@ -1799,6 +1950,7 @@ export class GameEngine {
 
       // Death explosion / ragdoll particles
       this.particles.addBlood(victim.x + victim.width / 2, victim.y + victim.height / 2, 0, -100);
+      this.particles.addExplosion(victim.x + victim.width / 2, victim.y + victim.height / 2, false);
       this.particles.addFloatingText(victim.x + victim.width / 2, victim.y - 18, isHeadshot ? '🎯 HEADSHOT!' : '💀', '#ef4444');
       soundManager.playKill();
 
@@ -2224,20 +2376,97 @@ export class GameEngine {
 
   private render() {
     const otherPlayers = this.players.filter(p => p.id !== this.player.id);
-    this.renderer.render(
-      this.map,
-      this.player,
-      otherPlayers,
-      this.projectiles,
-      this.particles,
-      undefined,
-      this.scopeLevel
-    );
+    const use3DCharacters = (settingsManager.getSettings().enable3DCharactersInBattle !== false) && !!this.threeRenderer && this.threeRenderer.areModelsLoaded;
+
+    if (use3DCharacters && this.threeRenderer) {
+      // 1. Draw beautiful 2D map, background, particles, bullets, and decals on 2D canvas (skip 2D characters)
+      this.renderer.render(
+        this.map,
+        this.player,
+        otherPlayers,
+        this.projectiles,
+        this.particles,
+        undefined,
+        this.scopeLevel,
+        true // Skip 2D characters so we don't double render them!
+      );
+
+      // 2. Overlay beautifully detailed 3D player models on top, matching the exact coordinates!
+      this.threeRenderer.render(
+        this.map,
+        this.player,
+        otherPlayers,
+        this.projectiles,
+        this.particles,
+        this.scopeLevel,
+        this.renderer
+      );
+    } else {
+      this.renderer.render(
+        this.map,
+        this.player,
+        otherPlayers,
+        this.projectiles,
+        this.particles,
+        undefined,
+        this.scopeLevel,
+        false
+      );
+    }
   }
 
   // State Getters for HUD
   public getPlayerState(): CharacterState {
     return this.player;
+  }
+
+  public setPlayerWeaponDirectly(weapon: WeaponType) {
+    if (!this.player) return;
+    if (!WEAPON_CONFIGS[weapon]) return;
+    
+    const idx = this.player.weapons.indexOf(weapon);
+    if (idx !== -1) {
+      this.player.currentWeaponIndex = idx;
+    } else {
+      if (this.player.weapons.length >= 2) {
+        this.player.weapons[this.player.currentWeaponIndex] = weapon;
+      } else {
+        this.player.weapons.push(weapon);
+        this.player.currentWeaponIndex = this.player.weapons.length - 1;
+      }
+    }
+    
+    if (!this.player.ammo[weapon]) {
+      this.player.ammo[weapon] = WEAPON_CONFIGS[weapon].magazineSize;
+    }
+    if (!this.player.reserveAmmo[weapon]) {
+      this.player.reserveAmmo[weapon] = WEAPON_CONFIGS[weapon].magazineSize * 3;
+    }
+    
+    this.player.weaponSwitchTimer = 0.3;
+    soundManager.play('weapon_pickup');
+    this.particles.addFloatingText(this.player.x, this.player.y - 20, `تم تجهيز ${WEAPON_CONFIGS[weapon].nameAr}`, '#38bdf8');
+  }
+
+  public applyTacticalBoost(type: 'health' | 'jetpack' | 'shield' | 'grenade') {
+    if (!this.player) return;
+    if (type === 'health') {
+      this.player.health = Math.min(this.player.maxHealth, this.player.health + 50);
+      this.particles.addFloatingText(this.player.x, this.player.y - 20, '+50 صحة ❤️', '#22c55e');
+      soundManager.playPickup('health');
+    } else if (type === 'jetpack') {
+      this.player.fuel = this.player.maxFuel;
+      this.particles.addFloatingText(this.player.x, this.player.y - 20, 'وقود نفاث 100% ⚡', '#38bdf8');
+      soundManager.playPickup('boost');
+    } else if (type === 'shield') {
+      this.player.health = this.player.maxHealth;
+      this.particles.addFloatingText(this.player.x, this.player.y - 20, 'درع نانو فائق 🛡️', '#a855f7');
+      soundManager.play('shield_hit');
+    } else if (type === 'grenade') {
+      this.player.grenades = (this.player.grenades || 0) + 2;
+      this.particles.addFloatingText(this.player.x, this.player.y - 20, '+2 قنابل 💣', '#f59e0b');
+      soundManager.playPickup('ammo');
+    }
   }
 
   public getMatchInfo() {

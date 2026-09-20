@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, VolumeX, Bell, Settings as SettingsIcon, Shield, Zap } from 'lucide-react';
+import { Volume2, VolumeX, Bell, Settings as SettingsIcon, Shield, Zap, Wifi } from 'lucide-react';
 import { settingsManager, TacticalSettings } from '../utils/settingsManager';
 import { soundManager } from '../audio/soundManager';
 
@@ -14,6 +14,8 @@ interface GameHeaderProps {
 
 export const GameHeader: React.FC<GameHeaderProps> = ({ onOpenSettings, onOpenAuth, currentUser, title }) => {
   const [settings, setSettings] = useState<TacticalSettings>(() => settingsManager.getSettings());
+  const [ping, setPing] = useState(24);
+  const [pingStatus, setPingStatus] = useState<'stable' | 'moderate' | 'unstable'>('stable');
 
   useEffect(() => {
     const unsub = settingsManager.subscribe((newSettings) => {
@@ -22,11 +24,64 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onOpenSettings, onOpenAu
     return unsub;
   }, []);
 
+  // Simulating live network server latency ping
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const rand = Math.random();
+      let nextPing = 24;
+      if (rand < 0.8) {
+        // Stable ping green zone (16ms to 45ms)
+        nextPing = Math.floor(16 + Math.random() * 30);
+      } else if (rand < 0.94) {
+        // Moderate yellow warning zone (46ms to 110ms)
+        nextPing = Math.floor(46 + Math.random() * 65);
+      } else {
+        // High spike red warning zone (120ms to 290ms)
+        nextPing = Math.floor(120 + Math.random() * 170);
+      }
+      setPing(nextPing);
+
+      if (nextPing < 55) {
+        setPingStatus('stable');
+      } else if (nextPing < 115) {
+        setPingStatus('moderate');
+      } else {
+        setPingStatus('unstable');
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const pingColors = {
+    stable: {
+      text: 'text-emerald-400',
+      bg: 'bg-emerald-950/40 border-emerald-500/20',
+      pingDot: 'bg-emerald-400',
+    },
+    moderate: {
+      text: 'text-yellow-400',
+      bg: 'bg-yellow-950/40 border-yellow-500/20',
+      pingDot: 'bg-yellow-400',
+    },
+    unstable: {
+      text: 'text-red-400',
+      bg: 'bg-red-950/40 border-red-500/20',
+      pingDot: 'bg-red-400',
+    },
+  }[pingStatus];
+
   const toggleMute = () => {
     const newMute = !settings.isMuted;
     soundManager.setMuted(newMute);
     if (!newMute) soundManager.playButtonClick();
     settingsManager.updateSettings({ isMuted: newMute });
+  };
+
+  const toggleLandscape = () => {
+    soundManager.playButtonClick();
+    const newLandscape = !settings.isLandscapeMode;
+    settingsManager.updateSettings({ isLandscapeMode: newLandscape });
   };
 
   return (
@@ -40,13 +95,18 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onOpenSettings, onOpenAu
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover border border-[#3b5940] shadow-md shrink-0"
           />
           <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs sm:text-sm font-black text-amber-400 font-mono tracking-wider truncate">
                 {settings.playerName}
               </span>
               <span className="text-[9px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.2 rounded border border-amber-500/40">
                 LVL {settings.playerRank}
               </span>
+              {/* Dynamic Ping Indicator */}
+              <div className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border font-mono font-black transition-all duration-300 ${pingColors.bg} ${pingColors.text}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${pingColors.pingDot} animate-pulse shrink-0`} />
+                <span>{ping}ms</span>
+              </div>
             </div>
             {/* Rank XP Bar */}
             <div className="w-20 sm:w-28 h-1.5 bg-[#070d09] rounded-full overflow-hidden mt-0.5 border border-[#1e2f21]">
@@ -90,6 +150,19 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onOpenSettings, onOpenAu
 
         {/* Right: Quick Action Controls */}
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Landscape / Orientation Toggle Button */}
+          <button
+            onClick={toggleLandscape}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center border shadow-sm active:scale-95 transition-all ${
+              settings.isLandscapeMode
+                ? 'bg-cyan-950/90 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.4)]'
+                : 'bg-[#142218] hover:bg-[#1d3023] text-gray-300 border-[#2b4430]'
+            }`}
+            title={settings.isLandscapeMode ? 'الوضع الأفقي العريض مفعّل (انقر للتغيير)' : 'تفعيل الوضع الأفقي (Landscape Mode)'}
+          >
+            <span className="text-xs font-black">📱↔️</span>
+          </button>
+
           {/* Sound Mute Button */}
           <button
             onClick={toggleMute}

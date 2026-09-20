@@ -9,6 +9,8 @@ import {
   User as FirebaseUser,
   GoogleAuthProvider,
   signInWithPopup,
+  setPersistence,
+  indexedDBLocalPersistence,
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -44,18 +46,22 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // Initialize Firestore with local persistence for offline support
 let dbInstance;
+const dbId = firebaseConfigJson.firestoreDatabaseId || '(default)';
 try {
   dbInstance = initializeFirestore(app, {
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager()
     })
-  });
+  }, dbId);
 } catch (error) {
   console.warn("Firestore initialization with cache failed, falling back to basic:", error);
-  dbInstance = getFirestore(app);
+  dbInstance = getFirestore(app, dbId);
 }
 
 export const auth = getAuth(app);
+setPersistence(auth, indexedDBLocalPersistence).catch((error) => {
+  console.error("Failed to set Firebase Auth persistence:", error);
+});
 export const db = dbInstance;
 
 /**

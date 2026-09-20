@@ -34,7 +34,7 @@ interface SettingsModalProps {
   onOpenAuth: () => void;
 }
 
-type TabType = 'controls' | 'hud' | 'audio' | 'graphics' | 'account';
+type TabType = 'controls' | 'hud' | 'audio' | 'graphics' | 'account' | 'patch_notes';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, currentUser, onOpenAuth }) => {
   const [settings, setSettings] = useState<TacticalSettings>(() => settingsManager.getSettings());
@@ -205,6 +205,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
             >
               <User size={16} />
               <span>الحساب (Profile)</span>
+            </button>
+
+            <button
+              onClick={() => {
+                soundManager.playButtonClick();
+                setActiveTab('patch_notes');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black shrink-0 transition-all ${
+                activeTab === 'patch_notes'
+                  ? 'bg-gradient-to-r from-red-600 to-amber-500 text-white shadow-md shadow-red-500/20'
+                  : 'bg-[#142018] text-gray-400 hover:text-white hover:bg-[#1a2b20]'
+              }`}
+            >
+              <Sparkles size={16} />
+              <span>سجل التغييرات (Patch Notes)</span>
             </button>
           </div>
 
@@ -602,6 +617,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
                       className="w-full h-2 bg-[#0c140f] rounded-lg appearance-none cursor-pointer accent-cyan-400"
                     />
                   </div>
+                  
+                  {/* Kill Feed Icon Style */}
+                  <div className="space-y-2 pt-2 border-t border-[#223526]">
+                    <span className="text-xs font-black text-white block">
+                      نمط أيقونات إعلان القتل (Kill Feed Icon Style):
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['classic', 'bold', 'neon', 'minimalist'] as const).map((style) => (
+                        <button
+                          key={style}
+                          onClick={() => {
+                            soundManager.playButtonClick();
+                            setSettings((prev) => ({ ...prev, killFeedIconStyle: style }));
+                          }}
+                          className={`py-2 px-2 rounded-lg text-[10px] font-black border transition-all capitalize ${
+                            settings.killFeedIconStyle === style
+                              ? 'bg-emerald-600 text-white border-emerald-400'
+                              : 'bg-[#0e1711] border-[#223526] text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          {style}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -782,6 +822,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
                       <div className="w-5 h-5 rounded-full bg-white shadow-md" />
                     </button>
                   </div>
+
+                  {/* Performance Mode */}
+                  <div className="flex items-center justify-between pt-2 border-t border-[#223526]">
+                    <div>
+                      <span className="text-xs font-black text-white block text-cyan-400">
+                        وضع الأداء السلس (Performance Mode) ⚡
+                      </span>
+                      <span className="text-[11px] text-gray-400">
+                        تقليل جودة وتفاصيل مجسمات الـ 3D والأسلحة لضمان سلاسة اللعب بدون أي لاغ
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        soundManager.playButtonClick();
+                        setSettings((prev) => ({ ...prev, performanceMode: !prev.performanceMode }));
+                      }}
+                      className={`w-12 h-6 rounded-full transition-colors p-0.5 flex items-center ${
+                        settings.performanceMode ? 'bg-cyan-500 justify-end' : 'bg-gray-700 justify-start'
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+                    </button>
+                  </div>
+
+                  {/* 3D Battle Characters Toggle */}
+                  <div className="flex items-center justify-between pt-2 border-t border-[#223526]">
+                    <div>
+                      <span className="text-xs font-black text-white block text-emerald-400">
+                        شخصيات ثلاثية الأبعاد في المعركة (3D Battle Characters) 👾
+                      </span>
+                      <span className="text-[11px] text-gray-400">
+                        تفعيل مجسمات الـ 3D التفاعلية داخل المعركة، أو تعطيلها للعب بالرسوم الكلاسيكية الكرتونية 2D المضمونة والأسرع
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        soundManager.playButtonClick();
+                        setSettings((prev) => ({ ...prev, enable3DCharactersInBattle: prev.enable3DCharactersInBattle !== false ? false : true }));
+                      }}
+                      className={`w-12 h-6 rounded-full transition-colors p-0.5 flex items-center ${
+                        settings.enable3DCharactersInBattle !== false ? 'bg-[#10b981] justify-end' : 'bg-gray-700 justify-start'
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded-full bg-white shadow-md" />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -888,10 +974,88 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, c
                   </div>
                 </div>
                 
-                {/* Security Badge */}
+                 {/* Security Badge */}
                 <div className="flex items-center justify-center gap-2 text-[10px] text-gray-500 opacity-60">
                   <Shield size={12} />
                   <span>تشفير عسكري لحماية بيانات اللاعبين • Firebase Shield</span>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 6: PATCH NOTES (سجل التغييرات) */}
+            {activeTab === 'patch_notes' && (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-br from-red-950/40 via-neutral-950 to-neutral-950 border border-red-500/30 p-4 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-black text-white flex items-center gap-2">
+                      <Sparkles size={18} className="text-amber-400" />
+                      <span>تحديث التوازن العسكري الشامل (v5.4.0)</span>
+                    </span>
+                    <span className="text-[10px] bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800 font-bold">
+                      نشط حالياً
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 leading-relaxed text-right">
+                    إليك التعديلات الأخيرة المدخلة على الأسلحة والمعدات التكتيكية لإرساء توازن مطلق وضمان أقصى درجات الإثارة والمنافسة العادلة في الساحة:
+                  </p>
+                </div>
+
+                {/* Weapons Changes list */}
+                <div className="space-y-3">
+                  <span className="text-xs font-black text-amber-400 block text-right">🔫 تحديثات الأسلحة والضرر البالستي:</span>
+                  
+                  <div className="bg-[#142018] border border-[#2b4430] p-3 rounded-xl space-y-2 text-right">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-emerald-400 font-bold">بوف (Buff) ⚡</span>
+                      <span className="font-black text-white">بندقية القنص العسكرية Sniper M99</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed text-right">
+                      • تم زيادة نسبة ضربة الرأس (Headshot damage multiplier) من <strong className="text-amber-400">1.8x إلى 2.0x</strong> لتعزيز المهارة والدقة.
+                      <br />
+                      • تقليل ارتداد السلاح الخفيف عند إطلاق الرصاص المتتالي بمقدار <strong className="text-emerald-400">12%</strong>.
+                    </p>
+                  </div>
+
+                  <div className="bg-[#142018] border border-[#2b4430] p-3 rounded-xl space-y-2 text-right">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-amber-400 font-bold">تعديل التوازن (Balance) ⚙️</span>
+                      <span className="font-black text-white">الشوزن الفتاك Combat Shotgun</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed text-right">
+                      • زيادة طفيفة في سرعة تعبئة الذخيرة والملء بمقدار <strong className="text-emerald-400">8%</strong>.
+                      <br />
+                      • تقليص المسافة القصوى لانتشار الشظايا بنسبة <strong className="text-red-400">5%</strong> لتأكيد فاعليته القصوى في المسافات القريبة والممرات الضيقة فقط.
+                    </p>
+                  </div>
+
+                  <div className="bg-[#142018] border border-[#2b4430] p-3 rounded-xl space-y-2 text-right">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-emerald-400 font-bold">تحسينات عامة 📈</span>
+                      <span className="font-black text-white">بندقية M4 الهجومية M4 Tactical</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed text-right">
+                      • زيادة طفيفة لسعة الخزنة الافتراضية من <strong className="text-emerald-400">30 إلى 32 طلقة</strong>.
+                      <br />
+                      • تحسين خفة الحركة ووزن السلاح لزيادة سرعة المشي والتصويب أثناء الإطلاق.
+                    </p>
+                  </div>
+
+                  <div className="bg-[#142018] border border-[#2b4430] p-3 rounded-xl space-y-2 text-right">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-red-400 font-bold">نيرف (Nerve) 📉</span>
+                      <span className="font-black text-white">القنابل التكتيكية واليدوية</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed text-right">
+                      • تقليل قطر التفجير الإجمالي بنسبة <strong className="text-red-400">10%</strong> لمنع التكديس غير العادل بالممرات الضيقة.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Footer system check */}
+                <div className="bg-[#0b120d] p-3 rounded-xl border border-[#223526] text-center">
+                  <span className="text-[10px] text-gray-500 font-bold">
+                    نشكر مساهمتكم الدائمة في الإبلاغ عن الثغرات واقتراحات موازنة المعارك! 🫡
+                  </span>
                 </div>
               </div>
             )}

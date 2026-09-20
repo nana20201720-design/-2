@@ -1,24 +1,25 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
-  RotateCw,
-  RotateCcw,
   Sparkles,
   Shield,
   Zap,
-  Target,
-  Flame,
-  Check,
   ShoppingBag,
   Eye,
-  Maximize2,
-  RefreshCw
+  Crosshair,
+  Flame,
+  User,
+  Sun,
+  Moon,
+  Tv
 } from 'lucide-react';
 import { soundManager } from '../audio/soundManager';
 import { haptics } from '../utils/haptics';
-import { WeaponSpriteSVG } from '../game/weaponSprites';
-import { MiniMilitiaDoodleSoldier } from './MiniMilitiaDoodleSoldier';
+import { ThreeWeaponCanvas } from './ThreeWeaponCanvas';
+import { ThreeSoldierCanvas } from './ThreeSoldierCanvas';
+import { SafeImage } from './SafeImage';
+import { getWeaponBiome, WEAPON_BIOMES } from '../utils/weaponEnvironmentThemes';
 
 export interface PreviewableStoreItem {
   id: string;
@@ -28,6 +29,17 @@ export interface PreviewableStoreItem {
   category: 'weapon' | 'crate' | 'character' | 'pack';
   image?: string;
   weaponType?: string;
+  characterConfig?: {
+    camoColor?: string;
+    headgear?: string;
+    bodyArmor?: string;
+    eyewear?: string;
+    beard?: string;
+    jetpackStyle?: string;
+    skinTone?: string;
+    trailColor?: string;
+    weapon?: string;
+  };
   priceCoins?: number;
   priceGems?: number;
   priceUsd?: string;
@@ -54,24 +66,8 @@ export const Store3DPreviewModal: React.FC<Store3DPreviewModalProps> = ({
   onClose,
   onBuy,
 }) => {
-  const [rotateY, setRotateY] = useState(0);
-  const [rotateX, setRotateX] = useState(10);
-  const [isAutoRotating, setIsAutoRotating] = useState(true);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [scale, setScale] = useState(1);
-
-  const autoRotateRef = useRef<number | null>(null);
-
-  // Auto-rotation animation loop
-  useEffect(() => {
-    if (isAutoRotating && !isDragging) {
-      const interval = setInterval(() => {
-        setRotateY((prev) => (prev + 1.2) % 360);
-      }, 20);
-      return () => clearInterval(interval);
-    }
-  }, [isAutoRotating, isDragging]);
+  const [lightingPreset, setLightingPreset] = useState<'cyber' | 'daylight' | 'sunset' | 'nightops'>('cyber');
+  const [characterPose, setCharacterPose] = useState<'idle' | 'aim' | 'flight' | 'salute'>('aim');
 
   if (!isOpen || !item) return null;
 
@@ -79,31 +75,16 @@ export const Store3DPreviewModal: React.FC<Store3DPreviewModalProps> = ({
   const isEpic = item.rarity === 'epic';
   const isRare = item.rarity === 'rare';
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    setIsDragging(true);
-    setIsAutoRotating(false);
-    setDragStart({ x: e.clientX, y: e.clientY });
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging) return;
-    const deltaX = e.clientX - dragStart.x;
-    const deltaY = e.clientY - dragStart.y;
-    setRotateY((prev) => (prev + deltaX * 0.8) % 360);
-    setRotateX((prev) => Math.max(-30, Math.min(35, prev - deltaY * 0.5)));
-    setDragStart({ x: e.clientX, y: e.clientY });
-  };
-
-  const handlePointerUp = () => {
-    setIsDragging(false);
-  };
+  const itemBiome = getWeaponBiome(item);
+  const biomeTheme = WEAPON_BIOMES[itemBiome];
+  const BiomeIcon = biomeTheme.icon;
 
   const getRarityBadge = () => {
     if (isLegendary) {
       return (
         <span className="bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-500 text-black font-black text-xs px-3 py-1 rounded-full border border-yellow-200 shadow-[0_0_15px_rgba(245,158,11,0.8)] flex items-center gap-1.5 animate-pulse">
           <Sparkles size={14} className="text-black" />
-          عنصر أسطوري ★★★ (LEGENDARY)
+          عنصر أسطوري 3D ★★★ (LEGENDARY)
         </span>
       );
     }
@@ -111,7 +92,7 @@ export const Store3DPreviewModal: React.FC<Store3DPreviewModalProps> = ({
       return (
         <span className="bg-gradient-to-r from-purple-600 to-pink-500 text-white font-black text-xs px-3 py-1 rounded-full border border-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.7)] flex items-center gap-1.5">
           <Zap size={14} className="text-yellow-300" />
-          عنصر ملحمي ★★ (EPIC)
+          عنصر ملحمي 3D ★★ (EPIC)
         </span>
       );
     }
@@ -119,25 +100,32 @@ export const Store3DPreviewModal: React.FC<Store3DPreviewModalProps> = ({
       return (
         <span className="bg-gradient-to-r from-cyan-500 to-blue-500 text-black font-black text-xs px-3 py-1 rounded-full border border-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.6)] flex items-center gap-1.5">
           <Shield size={14} className="text-black" />
-          عنصر نادر ★ (RARE)
+          عنصر نادر 3D ★ (RARE)
         </span>
       );
     }
     return (
       <span className="bg-gray-800 text-gray-300 font-bold text-xs px-3 py-1 rounded-full border border-gray-600">
-        عنصر قياسي (COMMON)
+        عنصر قياسي 3D (COMMON)
       </span>
     );
   };
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/90 backdrop-blur-xl select-none">
+      <div
+        onClick={() => {
+          soundManager.playButtonClick();
+          onClose();
+        }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-xl select-none overflow-y-auto"
+      >
         <motion.div
-          initial={{ opacity: 0, scale: 0.85, y: 30 }}
+          initial={{ opacity: 0, scale: 0.88, y: 30 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          className={`relative w-full max-w-xl rounded-3xl p-5 sm:p-6 flex flex-col items-center overflow-hidden border-2 shadow-2xl text-right ${
+          onClick={(e) => e.stopPropagation()}
+          className={`relative w-full max-w-xl max-h-[94vh] overflow-y-auto rounded-3xl p-4 sm:p-6 flex flex-col items-center border-2 shadow-2xl text-right my-auto ${
             isLegendary
               ? 'bg-gradient-to-b from-[#1c180e] via-[#0f0d07] to-[#080603] border-amber-400 shadow-[0_0_80px_rgba(245,158,11,0.5)]'
               : isEpic
@@ -145,43 +133,16 @@ export const Store3DPreviewModal: React.FC<Store3DPreviewModalProps> = ({
               : 'bg-gradient-to-b from-[#101e16] via-[#0a120d] to-[#050906] border-emerald-500/80 shadow-[0_0_60px_rgba(16,185,129,0.35)]'
           }`}
         >
-          {/* RARE ITEM SPECULAR SHEEN & GLEAM SWEEP EFFECT (تأثير لمعان العناصر النادرة والأسطورية) */}
-          {(isLegendary || isEpic || isRare) && (
-            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-3xl">
-              {/* Gold/Cyan Sheen Beam Animation */}
-              <motion.div
-                initial={{ x: '-150%', y: '-150%' }}
-                animate={{ x: '150%', y: '150%' }}
-                transition={{
-                  repeat: Infinity,
-                  duration: isLegendary ? 2.5 : 3.8,
-                  ease: 'easeInOut',
-                  repeatDelay: 1,
-                }}
-                className={`absolute w-full h-[200%] rotate-45 opacity-30 ${
-                  isLegendary
-                    ? 'bg-gradient-to-r from-transparent via-amber-200 to-transparent'
-                    : isEpic
-                    ? 'bg-gradient-to-r from-transparent via-purple-300 to-transparent'
-                    : 'bg-gradient-to-r from-transparent via-cyan-200 to-transparent'
-                }`}
-              />
-
-              {/* Radial Sparkle Bloom in background */}
-              <div
-                className={`absolute inset-0 pointer-events-none animate-pulse ${
-                  isLegendary
-                    ? 'bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.22),transparent_70%)]'
-                    : 'bg-[radial-gradient(circle_at_center,rgba(168,85,247,0.18),transparent_70%)]'
-                }`}
-              />
-            </div>
-          )}
-
           {/* Header Bar */}
-          <div className="w-full flex items-center justify-between border-b border-white/10 pb-3 mb-3 z-10">
-            <div className="flex items-center gap-2">
+          <div className="w-full flex items-center justify-between border-b border-white/10 pb-3 mb-2 z-10">
+            <div className="flex items-center gap-2 flex-wrap">
               {getRarityBadge()}
+              <span
+                className={`text-[10px] font-black px-2.5 py-1 rounded-full border flex items-center gap-1.5 shadow-sm ${biomeTheme.badgeBg} ${biomeTheme.badgeBorder} ${biomeTheme.badgeText}`}
+              >
+                <BiomeIcon size={12} />
+                <span>بيئة: {biomeTheme.nameAr}</span>
+              </span>
             </div>
 
             <button
@@ -197,9 +158,14 @@ export const Store3DPreviewModal: React.FC<Store3DPreviewModalProps> = ({
 
           {/* Item Name & Details */}
           <div className="w-full space-y-1 mb-2 z-10">
-            <h2 className="text-lg sm:text-xl font-black text-white uppercase tracking-wide">
-              {item.name}
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg sm:text-xl font-black text-white uppercase tracking-wide">
+                {item.name}
+              </h2>
+              <span className="text-[10px] bg-emerald-950 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-700">
+                مجسم ثلاثي الأبعاد حقيقي (Real-Time 3D WebGL)
+              </span>
+            </div>
             {item.nameEn && (
               <span className="text-xs text-amber-400 font-mono tracking-widest block">
                 {item.nameEn}
@@ -208,137 +174,66 @@ export const Store3DPreviewModal: React.FC<Store3DPreviewModalProps> = ({
             <p className="text-xs text-gray-300">{item.description}</p>
           </div>
 
-          {/* INTERACTIVE 3D ROTATING VIEWPORT STAGE */}
+          {/* REAL-TIME 3D WEBGL INTERACTIVE VIEWPORT */}
           <div
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            className={`relative w-full h-64 sm:h-72 my-2 rounded-2xl border-2 overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none z-10 ${
+            className={`relative w-full h-72 sm:h-80 my-2 rounded-2xl border-2 overflow-hidden flex items-center justify-center select-none z-10 ${
               isLegendary
                 ? 'bg-gradient-to-b from-[#130f07] to-[#080603] border-amber-500/50 shadow-inner'
                 : 'bg-gradient-to-b from-[#09110b] to-[#040805] border-emerald-500/40 shadow-inner'
             }`}
           >
-            {/* Interactive Drag Instruction Hint */}
-            <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-xl border border-white/20 text-[10px] text-amber-300 font-bold flex items-center gap-1.5 pointer-events-none">
-              <Eye size={12} className="animate-pulse" />
-              <span>اسحب لتدوير المعاينة 360° (Drag to Rotate)</span>
-            </div>
-
-            {/* Rare Item Shimmer Sheen Light Burst Effect */}
-            {(isLegendary || isEpic) && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-48 h-48 bg-amber-500/20 rounded-full blur-3xl animate-ping" />
+            {/* Real 3D WebGL Rendering Canvas based on Category */}
+            {item.category === 'character' ? (
+              <div className="w-full h-full">
+                <ThreeSoldierCanvas
+                  camoColor={item.characterConfig?.camoColor || '#365314'}
+                  headgear={item.characterConfig?.headgear || 'camo_helmet'}
+                  bodyArmor={item.characterConfig?.bodyArmor || 'molle_vest'}
+                  eyewear={item.characterConfig?.eyewear || 'aviators'}
+                  beard={item.characterConfig?.beard || 'stubble'}
+                  jetpackStyle={item.characterConfig?.jetpackStyle || 'military_dual'}
+                  skinTone={item.characterConfig?.skinTone || '#fbb587'}
+                  weapon={item.characterConfig?.weapon || 'rifle'}
+                  trailColor={item.characterConfig?.trailColor || '#a855f7'}
+                  height={320}
+                  interactive={true}
+                  autoRotate={true}
+                  showPedestal={true}
+                  lightingPreset={lightingPreset}
+                />
+              </div>
+            ) : item.category === 'weapon' ? (
+              <div className="w-full h-full">
+                <ThreeWeaponCanvas
+                  weaponType={item.weaponType || item.id}
+                  rarity={item.rarity}
+                  height={300}
+                  interactive={true}
+                  autoRotate={true}
+                  showGlowBackdrop={true}
+                />
+              </div>
+            ) : (
+              /* Holographic 3D Crate / Pack Box */
+              <div className="relative w-full h-full flex flex-col items-center justify-center p-4">
+                <div className="relative w-48 h-48 flex items-center justify-center animate-bounce" style={{ animationDuration: '3s' }}>
+                  <SafeImage
+                    src={item.image || '/images/crate_elite.jpg'}
+                    alt={item.name}
+                    className="max-w-full max-h-full object-contain filter drop-shadow-[0_15px_30px_rgba(255,215,0,0.85)]"
+                    fallbackTitle={item.name}
+                    fallbackIcon="package"
+                  />
+                </div>
+                {/* 3D Holographic Base Ring */}
+                <div className="w-40 h-8 rounded-full border-2 border-amber-400 bg-amber-500/20 blur-[1px] animate-pulse" />
               </div>
             )}
 
-            {/* ROTATING 3D MODEL CONTAINER */}
-            <div
-              style={{
-                perspective: '1000px',
-                transformStyle: 'preserve-3d',
-              }}
-              className="relative w-full h-full flex items-center justify-center"
-            >
-              <div
-                style={{
-                  transform: `rotateY(${rotateY}deg) rotateX(${rotateX}deg) scale(${scale})`,
-                  transition: isDragging ? 'none' : 'transform 0.1s ease-out',
-                  transformStyle: 'preserve-3d',
-                }}
-                className="relative flex items-center justify-center filter drop-shadow-[0_15px_30px_rgba(0,0,0,0.85)]"
-              >
-                {/* 1) WEAPON TYPE PREVIEW */}
-                {item.category === 'weapon' && (
-                  <div className="relative p-6 bg-black/40 rounded-3xl border border-amber-500/30 flex items-center justify-center">
-                    <WeaponSpriteSVG
-                      weapon={item.weaponType || item.id}
-                      className="w-44 h-28 sm:w-60 sm:h-36 filter drop-shadow-[0_10px_20px_rgba(245,158,11,0.7)]"
-                    />
-                    {/* Holographic Laser Sight Line in 3D */}
-                    <div className="absolute top-1/2 left-full w-24 h-0.5 bg-red-500/80 blur-[1px] shadow-[0_0_8px_#ef4444]" />
-                  </div>
-                )}
-
-                {/* 2) CRATE TYPE PREVIEW */}
-                {item.category === 'crate' && (
-                  <div className="relative w-40 h-40 sm:w-48 sm:h-48 flex items-center justify-center">
-                    <img
-                      src={item.image || '/images/crate_elite.jpg'}
-                      alt={item.name}
-                      className="max-w-full max-h-full object-contain filter drop-shadow-[0_15px_30px_rgba(255,215,0,0.8)]"
-                    />
-                  </div>
-                )}
-
-                {/* 3) CHARACTER PREVIEW */}
-                {item.category === 'character' && (
-                  <div className="relative w-48 h-48 flex items-center justify-center">
-                    <MiniMilitiaDoodleSoldier className="w-44 h-44 sm:w-52 sm:h-52" />
-                  </div>
-                )}
-
-                {/* 4) FALLBACK IMAGE */}
-                {item.category === 'pack' && item.image && (
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="max-w-48 max-h-48 object-contain filter drop-shadow-[0_15px_30px_rgba(0,0,0,0.9)]"
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Rotation Control Toolbar */}
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-white/20 flex items-center gap-2 z-20">
-              <button
-                onClick={() => {
-                  soundManager.playButtonClick();
-                  setRotateY((prev) => prev - 45);
-                }}
-                className="p-1.5 hover:bg-white/20 text-white rounded-lg transition-all"
-                title="تدوير لليسار"
-              >
-                <RotateCcw size={16} />
-              </button>
-
-              <button
-                onClick={() => {
-                  soundManager.playButtonClick();
-                  setIsAutoRotating(!isAutoRotating);
-                }}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black flex items-center gap-1 transition-all ${
-                  isAutoRotating
-                    ? 'bg-amber-500 text-black shadow-md'
-                    : 'bg-white/10 text-gray-300'
-                }`}
-              >
-                <RefreshCw size={12} className={isAutoRotating ? 'animate-spin' : ''} />
-                <span>دوران تلقائي</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  soundManager.playButtonClick();
-                  setRotateY((prev) => prev + 45);
-                }}
-                className="p-1.5 hover:bg-white/20 text-white rounded-lg transition-all"
-                title="تدوير لليمين"
-              >
-                <RotateCw size={16} />
-              </button>
-
-              <button
-                onClick={() => {
-                  soundManager.playButtonClick();
-                  setRotateY(0);
-                  setRotateX(10);
-                  setScale(1);
-                }}
-                className="px-2 py-1 text-[10px] bg-white/10 hover:bg-white/20 text-gray-300 rounded-lg"
-              >
-                إعادة ضبط
-              </button>
+            {/* Hint Badge */}
+            <div className="absolute top-2 left-2 bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/20 text-[10px] text-amber-300 font-bold flex items-center gap-1.5 pointer-events-none">
+              <Eye size={12} className="animate-pulse" />
+              <span>معاينة حرة 360° ثلاثية الأبعاد</span>
             </div>
           </div>
 
@@ -404,10 +299,7 @@ export const Store3DPreviewModal: React.FC<Store3DPreviewModalProps> = ({
           <div className="w-full z-10 pt-1">
             <button
               onClick={() => {
-                soundManager.playVictory();
-                haptics.victory();
                 onBuy(item);
-                onClose();
               }}
               className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:brightness-110 text-black font-black text-sm shadow-xl shadow-amber-500/30 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer border border-yellow-200"
             >

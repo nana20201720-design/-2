@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { soundManager } from '../../audio/soundManager';
 import { haptics } from '../../utils/haptics';
+import { TacticalItemGraphic } from './TacticalItemGraphic';
 
 interface JetpackItem {
   id: string;
@@ -192,27 +193,7 @@ export const JetpackBay: React.FC = () => {
               transition={{ duration: 0.15, repeat: isThrusting ? Infinity : 0 }}
               className="relative w-24 h-24 rounded-2xl bg-gradient-to-br from-[#1b2b1d] to-[#0c150e] border-2 border-amber-500/40 flex flex-col items-center justify-center shadow-2xl z-10"
             >
-              <svg
-                width="48"
-                height="48"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={isThrusting ? 'text-amber-400 animate-pulse filter drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]' : 'text-gray-400'}
-              >
-                <path d="M6 4h12v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4z" />
-                <path d="M9 2v2" />
-                <path d="M15 2v2" />
-                <rect x="9" y="8" width="6" height="8" rx="1" />
-                <path d="M8 20l-2 3" />
-                <path d="M16 20l2 3" />
-              </svg>
-              <span className="text-[9px] font-mono text-gray-300 font-bold mt-1">
-                JETPACK V4
-              </span>
+              <TacticalItemGraphic id={currentItem.id} className="w-16 h-16 filter drop-shadow-[0_0_12px_rgba(245,158,11,0.6)]" />
             </motion.div>
 
             {/* Twin Exhaust Jet Flames */}
@@ -368,20 +349,7 @@ export const JetpackBay: React.FC = () => {
               </div>
 
               <div className="h-14 flex items-center justify-center bg-[#070d0a] rounded-xl border border-[#1d2d20] my-1">
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={item.isEquipped ? 'text-amber-400' : 'text-gray-500'}
-                >
-                  <path d="M6 4h12v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4z" />
-                  <rect x="9" y="8" width="6" height="8" rx="1" />
-                </svg>
+                <TacticalItemGraphic id={item.id} className="w-12 h-12" />
               </div>
 
               <div>

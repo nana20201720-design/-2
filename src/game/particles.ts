@@ -1,4 +1,5 @@
 import { Particle, FloatingText, BloodDecal, Platform } from '../types';
+import { performanceOptimizer } from '../utils/performanceOptimizer';
 
 export class ParticleSystem {
   private particles: Particle[] = [];
@@ -9,6 +10,12 @@ export class ParticleSystem {
   private readonly MAX_DECALS = 200;
 
   public update(dt: number, platforms?: Platform[]) {
+    // Enforce dynamic particle cap for lower-end Android device performance
+    const maxP = performanceOptimizer.getConfig().maxParticles;
+    if (this.particles.length > maxP) {
+      this.particles.splice(0, this.particles.length - maxP);
+    }
+
     // Update particles
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -185,7 +192,8 @@ export class ParticleSystem {
     impactVx: number = 0,
     impactVy: number = 0
   ) {
-    if (this.decals.length >= this.MAX_DECALS) {
+    const maxDecals = performanceOptimizer.getConfig().maxDecals;
+    if (this.decals.length >= maxDecals) {
       this.decals.shift(); // Remove oldest to preserve 60fps performance
     }
 

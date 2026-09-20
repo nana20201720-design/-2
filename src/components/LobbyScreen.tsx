@@ -30,9 +30,11 @@ import {
   RefreshCw,
   UserCheck,
   UserX,
+  ShoppingBag,
 } from 'lucide-react';
 import { soundManager } from '../audio/soundManager';
 import { haptics } from '../utils/haptics';
+import { friendsAndRoomsManager } from '../utils/friendsAndRoomsManager';
 import { BattleArena } from './BattleArena';
 import { GameMode } from '../types';
 import { DailyLoginModal } from './DailyLoginModal';
@@ -46,7 +48,7 @@ import CharacterCustomization from './CharacterCustomization';
 export interface LobbyFriend {
   id: string;
   name: string;
-  status: 'online' | 'in-game' | 'offline';
+  status: 'online' | 'in-game' | 'in-store' | 'offline';
   activity: string;
   level: number;
   rank: string;
@@ -98,12 +100,38 @@ const LOBBY_QUICK_PHRASES = [
 ];
 
 const INITIAL_LOBBY_FRIENDS: LobbyFriend[] = [
-  { id: 'f1', name: 'Ghost_Sniper', status: 'online', activity: 'جاهز للقتال ⚔️', level: 64, rank: 'Conqueror 👑' },
-  { id: 'f2', name: 'Viper_99', status: 'in-game', activity: 'في معركة Outpost 4v4 💣', level: 52, rank: 'Ace ⚡' },
-  { id: 'f3', name: 'ShadowKiller', status: 'online', activity: 'متصل في اللوبي 🟢', level: 48, rank: 'Crown 🌟' },
-  { id: 'f4', name: 'Zero_Cool', status: 'offline', activity: 'غير متصل (منذ 15 دقيقة)', level: 39, rank: 'Diamond 💎' },
-  { id: 'f5', name: 'Alpha_Wolf', status: 'online', activity: 'جاهز للانضمام 🚀', level: 71, rank: 'Conqueror 👑' },
-  { id: 'f6', name: 'Commando_Pro', status: 'in-game', activity: 'في معركة Catacombs 2v2 🔥', level: 58, rank: 'Ace ⚡' },
+  {
+    id: 'f_ghost',
+    name: 'Ghost_Sniper',
+    status: 'online',
+    activity: 'متواجد في اللوبي الرئيسي 📡',
+    level: 42,
+    rank: 'قناص النخبة 🎯',
+  },
+  {
+    id: 'f_viper',
+    name: 'Viper_99',
+    status: 'in-game',
+    activity: 'يخوض معركة حامية في Dust Arena ⚔️',
+    level: 56,
+    rank: 'جنرال القوات 🎖️',
+  },
+  {
+    id: 'f_falcon',
+    name: 'Shadow_Falcon',
+    status: 'in-store',
+    activity: 'يتسوق في المتجر لشراء صندوق أسطوري 🛒',
+    level: 38,
+    rank: 'مقاتل تكتيكي 🛡️',
+  },
+  {
+    id: 'f_shield',
+    name: 'Iron_Shield',
+    status: 'offline',
+    activity: 'غير متواجد حالياً 😴',
+    level: 24,
+    rank: 'مدافع الكتيبة 🛡️',
+  },
 ];
 
 interface Room {
@@ -118,66 +146,34 @@ interface Room {
   ping: number;
 }
 
-const INITIAL_ROOMS: Room[] = [
-  {
-    id: '8429',
-    name: 'غرفة النخبة والأساطير',
-    host: 'العقيد صخر',
-    map: 'Outpost (البؤرة)',
-    mode: 'قتال حر (FFA)',
-    players: 5,
-    maxPlayers: 6,
-    isPrivate: false,
-    ping: 24,
-  },
-  {
-    id: '7102',
-    name: 'كتيبة الصاعقة 77',
-    host: 'القائد كابوس',
-    map: 'Catacombs (السراديب)',
-    mode: 'فرق 4v4',
-    players: 4,
-    maxPlayers: 8,
-    isPrivate: false,
-    ping: 32,
-  },
-  {
-    id: '9931',
-    name: 'حرب القناصين فقط Sniper Only',
-    host: 'الشبح الأسود',
-    map: 'High Tower (البرج)',
-    mode: 'قناصة فقط',
-    players: 3,
-    maxPlayers: 6,
-    isPrivate: true,
-    ping: 18,
-  },
-  {
-    id: '5514',
-    name: 'تدريب النفاثة والصواريخ RPG',
-    host: 'الصاروخ الطائر',
-    map: 'Lunar Base (القمر)',
-    mode: 'صواريخ فقط',
-    players: 2,
-    maxPlayers: 6,
-    isPrivate: false,
-    ping: 45,
-  },
-];
+const INITIAL_ROOMS: Room[] = [];
 
 
 export default function LobbyScreen() {
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [dustParticles] = useState(() => {
+    return Array.from({ length: 28 }, (_, i) => ({
+      id: i,
+      left: `${Math.random() * 100}%`,
+      size: Math.random() * 3 + 1,
+      duration: Math.random() * 14 + 8,
+      delay: Math.random() * 6,
+    }));
+  });
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDailyModal, setShowDailyModal] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const [showTournamentModal, setShowTournamentModal] = useState(false);
   const [showRoomsList, setShowRoomsList] = useState(false);
   const [showMapBriefingModal, setShowMapBriefingModal] = useState(false);
   const [showCustomizationModal, setShowCustomizationModal] = useState(false);
   const [showInviteSquadModal, setShowInviteSquadModal] = useState(false);
   const [isRealisticSoldier, setIsRealisticSoldier] = useState(false);
+  const [lobbyBg, setLobbyBg] = useState<'secret_base' | 'jungle' | 'cyber_factory'>(() => {
+    return (localStorage.getItem('lobby_backdrop_video') as any) || 'secret_base';
+  });
   const [selectedMapId, setSelectedMapId] = useState('outpost');
   const [selectedGameMode, setSelectedGameMode] = useState<{ mode: GameMode; title: string; subtitle: string }>({
     mode: 'deathmatch',
@@ -214,21 +210,41 @@ export default function LobbyScreen() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Fetch Friends from Firestore
+  // 2. Fetch Friends from Firestore with Real-time Presence & Status Tracking
   useEffect(() => {
-    if (!auth.currentUser) return;
+    const unsubscribe = friendsAndRoomsManager.listenToMyFriends((firebaseFriends) => {
+      const mappedFriends: LobbyFriend[] = firebaseFriends.map((f) => {
+        let statusKey: 'online' | 'in-game' | 'in-store' | 'offline' = 'offline';
+        let activityText = 'غير متواجد حالياً 😴';
 
-    const friendsRef = collection(db, 'users', auth.currentUser.uid, 'friends');
-    const unsubscribe = onSnapshot(friendsRef, (snapshot) => {
-      if (snapshot.empty) {
+        if (f.status === 'in_game') {
+          statusKey = 'in-game';
+          activityText = f.currentRoomCode ? `في معركة بـ ${f.currentRoomCode} ⚔️` : 'يخوض معركة قتالية حامية ⚔️';
+        } else if (f.status === 'in_store') {
+          statusKey = 'in-store';
+          activityText = 'يتصفح المتجر والأسلحة 🛒';
+        } else if (f.status === 'online') {
+          statusKey = 'online';
+          activityText = 'متواجد في اللوبي الرئيسي 📡';
+        }
+
+        return {
+          id: f.uid,
+          name: f.displayName,
+          status: statusKey,
+          activity: activityText,
+          level: f.stats ? Math.floor((f.stats.totalKills * 10 + f.stats.totalWins * 50) / 100) + 1 : 1,
+          rank: 'مقاتل تكتيكي 🛡️',
+        };
+      });
+
+      if (mappedFriends.length === 0) {
         setFriends(INITIAL_LOBBY_FRIENDS);
-        return;
+      } else {
+        const existingIds = new Set(mappedFriends.map((f) => f.id));
+        const remainingDemo = INITIAL_LOBBY_FRIENDS.filter((f) => !existingIds.has(f.id));
+        setFriends([...mappedFriends, ...remainingDemo]);
       }
-      const friendsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as LobbyFriend[];
-      setFriends(friendsData);
     });
 
     return () => unsubscribe();
@@ -284,6 +300,7 @@ export default function LobbyScreen() {
   const [activeLobbyMatch, setActiveLobbyMatch] = useState<{
     mode: GameMode;
     title: string;
+    roomCode?: string;
   } | null>(null);
 
   // Active 1v1 challenge state
@@ -297,13 +314,10 @@ export default function LobbyScreen() {
   const [friends, setFriends] = useState<LobbyFriend[]>(INITIAL_LOBBY_FRIENDS);
   const [showFriendsSection, setShowFriendsSection] = useState(true);
   const [newFriendNameInput, setNewFriendNameInput] = useState('');
-  const [friendFilter, setFriendFilter] = useState<'all' | 'online' | 'ingame'>('all');
+  const [friendFilter, setFriendFilter] = useState<'all' | 'online' | 'ingame' | 'instore'>('all');
 
   // Pending Friend Requests State
-  const [pendingRequests, setPendingRequests] = useState([
-    { id: 'p_1', name: 'Eagle_Sniper_99', level: 58, rank: 'Ace ⚡' },
-    { id: 'p_2', name: 'Desert_Fox_Pro', level: 43, rank: 'Crown 🌟' },
-  ]);
+  const [pendingRequests, setPendingRequests] = useState([]);
 
   // Active floating emotes above lobby squad members
   const [activeSquadEmotes, setActiveSquadEmotes] = useState<Record<number, { emoji: string; label: string }>>({});
@@ -328,25 +342,7 @@ export default function LobbyScreen() {
       });
     }, 3800);
 
-    // Teammate random response
-    if (squadMembers[1] !== null) {
-      setTimeout(() => {
-        const responses = ['🫡', '🔥', '⚔️', '😎', '💪', '🎯'];
-        const randomEm = responses[Math.floor(Math.random() * responses.length)];
-        setActiveSquadEmotes((prev) => ({
-          ...prev,
-          1: { emoji: randomEm, label: 'رد الصديق' },
-        }));
-
-        setTimeout(() => {
-          setActiveSquadEmotes((prev) => {
-            const next = { ...prev };
-            delete next[1];
-            return next;
-          });
-        }, 3500);
-      }, 900);
-    }
+    // Teammate random response logic removed (No AI Bots)
 
     setShowEmotePicker(false);
     showToast(`💬 أرسلت تعبيرًا: ${emote.emoji} [${emote.label}]`);
@@ -373,23 +369,7 @@ export default function LobbyScreen() {
       trailColor: settings.equippedTrail || '#a855f7',
       skinTone: '#fbb587',
     },
-    {
-      id: 'f1',
-      name: 'Ghost_Sniper',
-      isLeader: false,
-      isReady: true,
-      level: 64,
-      rank: 'Ace ⚡',
-      weaponName: 'sniper',
-      camoColor: '#111827',
-      headgear: 'nvg_helmet',
-      bodyArmor: 'juggernaut',
-      eyewear: 'ballistic_goggles',
-      beard: 'cigar',
-      jetpackStyle: 'cyber_plasma',
-      trailColor: '#0284c7',
-      skinTone: '#fbb587',
-    },
+    null,
     null,
     null,
   ]);
@@ -472,10 +452,7 @@ export default function LobbyScreen() {
     text: string;
     time: string;
     isMain?: boolean;
-  }>>([
-    { id: 'initial_1', sender: 'Ghost_Sniper', text: 'أهلاً بكم يا رفاق! أنا مستعد للتغطية من البرج العلوي 🎯', time: '13:30' },
-    { id: 'initial_2', sender: 'Viper_99', text: 'هذه المعركة ستكون ملحمية! تذكروا استخدام الجيت باك بحكمة 🚀', time: '13:31' }
-  ]);
+  }>>([]);
 
   const handleSendQuickChat = (text: string) => {
     if (!text.trim()) return;
@@ -514,53 +491,7 @@ export default function LobbyScreen() {
 
     setCustomChatInput('');
 
-    // Trigger random reply from online team members with realistic delays!
-    const activeTeammatesIndices = squadMembers
-      .map((m, idx) => m !== null && idx !== 0 ? idx : -1)
-      .filter(idx => idx !== -1);
-
-    if (activeTeammatesIndices.length > 0) {
-      setTimeout(() => {
-        const responderIdx = activeTeammatesIndices[Math.floor(Math.random() * activeTeammatesIndices.length)];
-        const responderName = squadMembers[responderIdx]?.name || 'جندي مرافق';
-        
-        const responses = [
-          'علم! سأتبع خطتك تماماً 🫡',
-          'رائع! أنا جاهز لتغطية ظهرك 💪',
-          'استعدوا للتكتيك الهجومي الخاطف! ⚡',
-          'مفهوم، سأراقب النقاط الحيوية بالخريطة 🎯',
-          'انطلقوا، التغطية النيرانية جاهزة! 🔥',
-          'أنا جاهز ومتحمس جداً للمعركة! ⚔️',
-        ];
-        const replyText = responses[Math.floor(Math.random() * responses.length)];
-
-        const replyMessage = {
-          id: `msg_reply_${Date.now()}`,
-          sender: responderName,
-          text: replyText,
-          time: timeStr,
-          isMain: false
-        };
-
-        setQuickChatMessages((prev) => [...prev, replyMessage]);
-
-        setActiveSquadChats((prev) => ({
-          ...prev,
-          [responderIdx]: { text: replyText }
-        }));
-
-        soundManager.playMechanicalClick();
-
-        setTimeout(() => {
-          setActiveSquadChats((prev) => {
-            const next = { ...prev };
-            delete next[responderIdx];
-            return next;
-          });
-        }, 4500);
-
-      }, 1000 + Math.random() * 800); // 1.0 to 1.8 seconds realistic responder delay
-    }
+    // Trigger random reply logic removed (No AI Bots)
   };
 
   const handleInviteFriendToRoom = (friendName: string) => {
@@ -695,11 +626,13 @@ export default function LobbyScreen() {
   const filteredFriends = friends.filter((f) => {
     if (friendFilter === 'online') return f.status === 'online';
     if (friendFilter === 'ingame') return f.status === 'in-game';
+    if (friendFilter === 'instore') return f.status === 'in-store';
     return true;
   });
 
   const onlineCount = friends.filter((f) => f.status === 'online').length;
   const inGameCount = friends.filter((f) => f.status === 'in-game').length;
+  const inStoreCount = friends.filter((f) => f.status === 'in-store').length;
 
   const filteredRooms = rooms.filter(
     (r) =>
@@ -720,6 +653,7 @@ export default function LobbyScreen() {
     setActiveLobbyMatch({
       mode: engineMode,
       title: `${room.name} (${room.map})`,
+      roomCode: `room_${room.id}`,
     });
   };
 
@@ -734,6 +668,7 @@ export default function LobbyScreen() {
       setActiveLobbyMatch({
         mode: selectedGameMode.mode,
         title: selectedGameMode.title,
+        roomCode: `quick_match_${selectedGameMode.mode}`,
       });
     }, 2500);
   };
@@ -775,6 +710,7 @@ export default function LobbyScreen() {
       <BattleArena
         mode={activeLobbyMatch.mode}
         arenaTitle={activeLobbyMatch.title}
+        roomCode={(activeLobbyMatch as any).roomCode || 'lobby_arena_room'}
         onQuit={() => {
           setActiveLobbyMatch(null);
           soundManager.playButtonClick();
@@ -792,24 +728,175 @@ export default function LobbyScreen() {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative flex flex-col justify-between min-h-[75vh] pb-24 sm:pb-20 select-none bg-neutral-950"
+      className="relative flex flex-col justify-between min-h-[75vh] pb-24 sm:pb-20 select-none bg-[#040705] overflow-hidden"
     >
-      {/* Dynamic Animated Background */}
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1 }}
-        className="absolute inset-0 z-0"
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.1)_0%,rgba(0,0,0,0.8)_80%)] animate-pulse"></div>
-        <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] animate-[spin_60s_linear_infinite]"></div>
-      </motion.div>
-      <motion.div 
-        initial={{ backgroundPosition: "0% 0%" }}
-        animate={{ backgroundPosition: "100% 100%" }}
-        transition={{ repeat: Infinity, duration: 40, ease: "linear" }}
-        className="absolute inset-0 opacity-15 pointer-events-none z-0 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:20px_20px]" 
-      />
+      {/* Immersive Dynamic Animated Background with Flying Dust & Loopable Video Backdrop */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        
+        {/* ================= PROCEDURAL COMBAT HUD BACKDROPS (FALLBACKS & BLENDS) ================= */}
+        {lobbyBg === 'secret_base' && (
+          <div className="absolute inset-0 bg-radial-gradient from-emerald-950/20 to-[#040705] flex items-center justify-center">
+            {/* Holographic Radar Grid Sweep */}
+            <div className="relative w-[320px] h-[320px] sm:w-[480px] sm:h-[480px] rounded-full border border-emerald-500/15 flex items-center justify-center opacity-60">
+              <div className="absolute w-[80%] h-[80%] rounded-full border border-emerald-500/10 border-dashed" />
+              <div className="absolute w-[50%] h-[50%] rounded-full border border-emerald-500/10" />
+              <div className="absolute w-[20%] h-[20%] rounded-full border border-emerald-500/20" />
+              {/* Radar Crosshairs */}
+              <div className="absolute inset-y-0 w-px bg-emerald-500/10" />
+              <div className="absolute inset-x-0 h-px bg-emerald-500/10" />
+              {/* Rotating Sweep Line */}
+              <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
+                className="absolute w-1/2 h-1/2 origin-bottom-right bottom-1/2 right-1/2 bg-gradient-to-tr from-transparent to-emerald-500/25 border-r border-emerald-400/40"
+              />
+              {/* Blinking Targets */}
+              <span className="absolute top-[30%] left-[25%] w-1.5 h-1.5 bg-red-500 rounded-full animate-ping" />
+              <span className="absolute top-[30%] left-[25%] w-1.5 h-1.5 bg-red-400 rounded-full" />
+              <span className="absolute bottom-[20%] right-[35%] w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+              <span className="absolute top-[15%] right-[20%] text-[8px] font-mono text-emerald-400/40">LAT 24.320N</span>
+              <span className="absolute bottom-[10%] left-[15%] text-[8px] font-mono text-emerald-400/40">LON 55.192E</span>
+            </div>
+          </div>
+        )}
+
+        {lobbyBg === 'jungle' && (
+          <div className="absolute inset-0 bg-radial-gradient from-cyan-950/15 to-[#040705] flex items-center justify-center">
+            {/* Tactical Sonar/Compass Wave */}
+            <div className="relative w-[340px] h-[340px] sm:w-[500px] sm:h-[500px] rounded-full border border-cyan-500/15 flex items-center justify-center opacity-50">
+              <div className="absolute w-full h-full rounded-full border border-cyan-500/5 animate-ping" style={{ animationDuration: '4s' }} />
+              <div className="absolute w-[70%] h-[70%] rounded-full border border-cyan-500/10" />
+              <div className="absolute w-[40%] h-[40%] rounded-full border border-cyan-500/15 border-dashed" />
+              {/* Compass degree markings */}
+              <div className="absolute top-2 text-[8px] font-mono text-cyan-400/40 font-bold">N 0°</div>
+              <div className="absolute bottom-2 text-[8px] font-mono text-cyan-400/40 font-bold">S 180°</div>
+              <div className="absolute right-2 text-[8px] font-mono text-cyan-400/40 font-bold">E 90°</div>
+              <div className="absolute left-2 text-[8px] font-mono text-cyan-400/40 font-bold">W 270°</div>
+              {/* Rotating sweep */}
+              <motion.div 
+                animate={{ rotate: -360 }}
+                transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
+                className="absolute w-1/2 h-1/2 origin-bottom-right bottom-1/2 right-1/2 bg-gradient-to-tr from-transparent to-cyan-500/20 border-r border-cyan-400/30"
+              />
+              <span className="absolute top-[45%] right-[15%] w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+            </div>
+          </div>
+        )}
+
+        {lobbyBg === 'cyber_factory' && (
+          <div className="absolute inset-0 bg-radial-gradient from-amber-950/15 to-[#040705] flex items-center justify-center">
+            {/* Cybernetic Energy Matrix and Laser Grids */}
+            <div className="relative w-full h-full opacity-40">
+              <div className="absolute inset-0 bg-[linear-gradient(rgba(245,158,11,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.02)_1px,transparent_1px)] bg-[size:32px_32px]" />
+              <div className="absolute top-1/4 left-1/4 w-36 h-36 border border-amber-500/15 rounded-lg flex items-center justify-center animate-pulse">
+                <span className="text-[7px] font-mono text-amber-500/30">REACTOR TEMP: 450°C</span>
+              </div>
+              <div className="absolute bottom-1/4 right-1/4 w-44 h-44 border border-amber-500/10 border-dashed rounded-full flex items-center justify-center">
+                <motion.div 
+                  animate={{ scale: [0.9, 1.1, 0.9] }}
+                  transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                  className="w-[80%] h-[80%] rounded-full border border-amber-500/15"
+                />
+              </div>
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.03),transparent_60%)]" />
+            </div>
+          </div>
+        )}
+
+        {/* Dynamic Video Element for Map Backdrops */}
+        {lobbyBg === 'secret_base' && (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover opacity-35 mix-blend-screen transition-opacity duration-700"
+            src="https://assets.mixkit.co/videos/preview/mixkit-futuristic-digital-map-glowing-32128-large.mp4"
+          />
+        )}
+        {lobbyBg === 'jungle' && (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-lighten transition-opacity duration-700"
+            src="https://assets.mixkit.co/videos/preview/mixkit-forest-trees-with-sunbeams-31846-large.mp4"
+          />
+        )}
+        {lobbyBg === 'cyber_factory' && (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover opacity-25 mix-blend-color-dodge transition-opacity duration-700"
+            src="https://assets.mixkit.co/videos/preview/mixkit-welding-sparks-flying-in-a-dark-factory-40367-large.mp4"
+          />
+        )}
+
+        {/* Dynamic Vignette & Shift-Lighting */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.08)_0%,rgba(0,0,0,0.95)_88%)]" />
+        
+        {/* Military Scan Light Sweeps */}
+        <motion.div
+          animate={{
+            x: ['-100%', '200%'],
+            y: ['0%', '30%', '0%'],
+          }}
+          transition={{
+            repeat: Infinity,
+            duration: 15,
+            ease: "easeInOut",
+          }}
+          className="absolute top-0 left-0 w-[60%] h-full bg-gradient-to-r from-transparent via-emerald-500/5 to-transparent skew-x-12 opacity-40 filter blur-2xl"
+        />
+
+        <motion.div
+          animate={{
+            opacity: [0.35, 0.65, 0.35],
+            scale: [1, 1.04, 1],
+          }}
+          transition={{
+            repeat: Infinity,
+            duration: 10,
+            ease: "easeInOut",
+          }}
+          className="absolute inset-0 bg-gradient-to-t from-emerald-950/15 via-transparent to-red-950/5 mix-blend-color-dodge"
+        />
+
+        {/* Dynamic Dust Particles / Floating Military Base Embers */}
+        {dustParticles.map((p) => (
+          <motion.div
+            key={p.id}
+            initial={{ y: '110vh', x: 0, opacity: 0 }}
+            animate={{
+              y: '-10vh',
+              x: [0, Math.sin(p.id) * 35, 0],
+              opacity: [0, 0.65, 0.65, 0],
+            }}
+            transition={{
+              repeat: Infinity,
+              duration: p.duration,
+              delay: p.delay,
+              ease: 'linear',
+            }}
+            style={{
+              position: 'absolute',
+              left: p.left,
+              bottom: 0,
+              width: `${p.size}px`,
+              height: `${p.size}px`,
+              backgroundColor: '#10b981',
+              borderRadius: '50%',
+              boxShadow: '0 0 6px #10b981, 0 0 12px rgba(16,185,129,0.4)',
+            }}
+          />
+        ))}
+
+        {/* Tactical Base Grid Lines Overlay */}
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:24px_24px]" />
+      </div>
 
       {/* PUBG Style Top Status & Region Bar */}
       <div className="flex items-center justify-between bg-gradient-to-r from-[#0d1610]/90 via-[#132217]/90 to-[#0d1610]/95 border-b border-amber-500/30 px-4 py-2.5 rounded-2xl shadow-xl backdrop-blur-md mb-3">
@@ -888,6 +975,19 @@ export default function LobbyScreen() {
             >
               <Globe size={14} className="text-amber-400 animate-spin" style={{ animationDuration: '10s' }} />
               <span>تخطيط الخريطة والتكتيك 🗺️</span>
+            </button>
+
+            {/* Weekly Tournament Button */}
+            <button
+              onClick={() => {
+                soundManager.playButtonClick();
+                haptics.light();
+                setShowTournamentModal(true);
+              }}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-red-600 to-amber-600 hover:brightness-110 text-white border border-red-500/40 px-3 py-1 rounded-xl font-black text-xs shadow-lg active:scale-95 transition-all cursor-pointer animate-pulse"
+            >
+              <Award size={14} className="text-yellow-300" />
+              <span>البطولة الأسبوعية 🏆</span>
             </button>
           </div>
 
@@ -969,6 +1069,59 @@ export default function LobbyScreen() {
                   <UserPlus size={14} />
                   <span>دعوة صديق للوقوف باللوبي 📩</span>
                 </button>
+
+                {/* Veo Interactive Loop Backdrop Switcher */}
+                <div className="flex items-center gap-1 bg-black/70 border border-emerald-500/30 rounded-xl p-1 shrink-0">
+                  <span className="text-[10px] font-black text-amber-400 px-1 flex items-center gap-1">
+                    <Globe size={11} className="animate-spin text-amber-300" style={{ animationDuration: '8s' }} />
+                    <span>خلفية الخريطة:</span>
+                  </span>
+                  <button
+                    onClick={() => {
+                      soundManager.playButtonClick();
+                      haptics.light();
+                      setLobbyBg('secret_base');
+                      localStorage.setItem('lobby_backdrop_video', 'secret_base');
+                    }}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-all ${
+                      lobbyBg === 'secret_base'
+                        ? 'bg-gradient-to-r from-emerald-600 to-green-500 text-black shadow-md'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    القاعدة 🌐
+                  </button>
+                  <button
+                    onClick={() => {
+                      soundManager.playButtonClick();
+                      haptics.light();
+                      setLobbyBg('jungle');
+                      localStorage.setItem('lobby_backdrop_video', 'jungle');
+                    }}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-all ${
+                      lobbyBg === 'jungle'
+                        ? 'bg-gradient-to-r from-emerald-600 to-green-500 text-black shadow-md'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    الغابة 🌳
+                  </button>
+                  <button
+                    onClick={() => {
+                      soundManager.playButtonClick();
+                      haptics.light();
+                      setLobbyBg('cyber_factory');
+                      localStorage.setItem('lobby_backdrop_video', 'cyber_factory');
+                    }}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-all ${
+                      lobbyBg === 'cyber_factory'
+                        ? 'bg-gradient-to-r from-emerald-600 to-green-500 text-black shadow-md'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    المصنع ⚙️
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1357,7 +1510,7 @@ export default function LobbyScreen() {
               </p>
             </div>
 
-            <div className="flex items-center gap-1.5 self-end sm:self-auto">
+            <div className="flex items-center gap-1.5 self-end sm:self-auto flex-wrap">
               <button
                 onClick={() => setFriendFilter('all')}
                 className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
@@ -1389,6 +1542,17 @@ export default function LobbyScreen() {
               >
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
                 في اللعبة ({inGameCount})
+              </button>
+              <button
+                onClick={() => setFriendFilter('instore')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  friendFilter === 'instore'
+                    ? 'bg-cyan-500 text-black font-black shadow'
+                    : 'bg-[#122216] text-cyan-400 hover:text-white'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                في المتجر ({inStoreCount})
               </button>
             </div>
           </div>
@@ -1430,7 +1594,9 @@ export default function LobbyScreen() {
                           friend.status === 'online'
                             ? 'bg-emerald-400 animate-pulse'
                             : friend.status === 'in-game'
-                            ? 'bg-amber-400'
+                            ? 'bg-amber-400 animate-pulse'
+                            : friend.status === 'in-store'
+                            ? 'bg-cyan-400 animate-bounce'
                             : 'bg-gray-500'
                         }`}
                       />
@@ -1450,10 +1616,18 @@ export default function LobbyScreen() {
                         ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
                         : friend.status === 'in-game'
                         ? 'bg-amber-950 text-amber-300 border-amber-800'
+                        : friend.status === 'in-store'
+                        ? 'bg-cyan-950 text-cyan-300 border-cyan-800'
                         : 'bg-gray-900 text-gray-400 border-gray-800'
                     }`}
                   >
-                    {friend.status === 'online' ? '🟢 متصل' : friend.status === 'in-game' ? '🟡 في اللعبة' : '⚪ غير متصل'}
+                    {friend.status === 'online'
+                      ? '🟢 متصل'
+                      : friend.status === 'in-game'
+                      ? '⚔️ في المعركة'
+                      : friend.status === 'in-store'
+                      ? '🛒 في المتجر'
+                      : '⚪ غير متصل'}
                   </span>
                 </div>
 
@@ -1468,6 +1642,10 @@ export default function LobbyScreen() {
                         showToast(`⚠️ [${friend.name}] مشغول في معركة الآن! انتظر حتى ينتهي.`);
                         return;
                       }
+                      if (friend.status === 'in-store') {
+                        showToast(`🔔 تم إرسال تنبيه إلى [${friend.name}] للخروج من المتجر والانضمام للقتال!`);
+                        return;
+                      }
                       setActiveChallenge({
                         friendName: friend.name,
                         status: 'pending',
@@ -1478,11 +1656,22 @@ export default function LobbyScreen() {
                     className={`flex-1 py-1.5 rounded-xl font-black text-[11px] flex items-center justify-center gap-1 transition-all shadow ${
                       friend.status === 'offline'
                         ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                        : friend.status === 'in-store'
+                        ? 'bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-500 text-black hover:brightness-110 cursor-pointer active:scale-95'
                         : 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black hover:brightness-110 cursor-pointer active:scale-95'
                     }`}
                   >
-                    <Swords size={12} />
-                    <span>تحدي 1 ضد 1 ⚔️</span>
+                    {friend.status === 'in-store' ? (
+                      <>
+                        <ShoppingBag size={12} />
+                        <span>تنبيه للانضمام 🔔</span>
+                      </>
+                    ) : (
+                      <>
+                        <Swords size={12} />
+                        <span>تحدي 1 ضد 1 ⚔️</span>
+                      </>
+                    )}
                   </button>
 
                   <button
@@ -1983,6 +2172,154 @@ export default function LobbyScreen() {
         onClose={() => setShowFriendsModal(false)}
         onInviteFriend={(name) => showToast(`📨 تم إرسال دعوة إلى ${name} للانضمام لفريقك!`)}
       />
+
+      {/* Weekly Tournaments (البطولات الأسبوعية) modal overlay */}
+      <AnimatePresence>
+        {showTournamentModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md select-none">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.15 }}
+              className="w-full max-w-lg bg-gradient-to-b from-[#1c0e0e] to-[#0a0505] border-2 border-red-500/50 rounded-3xl p-5 md:p-6 shadow-[0_0_50px_rgba(239,68,68,0.25)] relative text-right"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  soundManager.playButtonClick();
+                  setShowTournamentModal(false);
+                }}
+                className="absolute top-4 left-4 p-2 rounded-full bg-black/40 hover:bg-black/80 border border-white/10 text-gray-400 hover:text-white transition-all cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+
+              {/* Header Title */}
+              <div className="flex items-center gap-3 border-b border-red-500/20 pb-4 mb-4">
+                <div className="p-3 bg-red-600/20 text-red-400 rounded-2xl border border-red-500/30">
+                  <Award className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                    <span>كأس جنرالات النخبة الأسبوعي 🏆</span>
+                  </h3>
+                  <p className="text-xs text-red-300 mt-0.5 font-bold">
+                    أحداث قتالية تكتيكية محدودة الوقت وجوائز ذهبية خاصة!
+                  </p>
+                </div>
+              </div>
+
+              {/* Countdown Timer Block */}
+              <div className="bg-[#120808] border border-red-500/20 rounded-2xl p-3 flex items-center justify-between gap-4 mb-4">
+                <div className="flex gap-1.5 font-mono text-xs font-black text-white">
+                  <span className="bg-red-950/80 px-2 py-1 rounded border border-red-500/20 text-red-400">03d</span>
+                  <span>:</span>
+                  <span className="bg-red-950/80 px-2 py-1 rounded border border-red-500/20">14h</span>
+                  <span>:</span>
+                  <span className="bg-red-950/80 px-2 py-1 rounded border border-red-500/20">22m</span>
+                  <span>:</span>
+                  <span className="bg-red-950/80 px-2 py-1 rounded border border-red-500/20">05s</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                  <span className="text-[11px] font-black text-red-400 uppercase tracking-wider">ينتهي الحدث خلال:</span>
+                </div>
+              </div>
+
+              {/* Tournament Target / Challenge description */}
+              <div className="bg-black/60 border border-white/5 rounded-2xl p-3.5 mb-4 space-y-2">
+                <h4 className="text-xs font-black text-amber-400">🎯 مهمة البطولة النشطة:</h4>
+                <p className="text-[11px] text-gray-300 leading-relaxed font-bold">
+                  اجمع أكبر عدد من القتلات التكتيكية في المعارك الجماعية باستخدام الأسلحة الهجومية وأسلحة القنص لتجميع النقاط والارتقاء في الترتيب العالمي.
+                </p>
+              </div>
+
+              {/* Reward list */}
+              <div className="space-y-2 mb-4">
+                <h4 className="text-xs font-black text-gray-300">🎁 جوائز الترتيب الكبرى:</h4>
+                <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-black">
+                  <div className="bg-[#1c150c] border border-amber-500/30 rounded-xl p-2">
+                    <span className="text-lg block">🥇</span>
+                    <span className="text-amber-400 block mt-0.5">المركز الأول</span>
+                    <span className="text-white font-mono block mt-1">5000 🪙 + 200 💎</span>
+                  </div>
+                  <div className="bg-[#151515] border border-gray-500/20 rounded-xl p-2">
+                    <span className="text-lg block">🥈</span>
+                    <span className="text-gray-300 block mt-0.5">المركز الثاني</span>
+                    <span className="text-white font-mono block mt-1">3000 🪙 + 100 💎</span>
+                  </div>
+                  <div className="bg-[#12100e] border border-orange-500/20 rounded-xl p-2">
+                    <span className="text-lg block">🥉</span>
+                    <span className="text-amber-600 block mt-0.5">المركز الثالث</span>
+                    <span className="text-white font-mono block mt-1">1500 🪙 + 50 💎</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Leaderboard */}
+              <div className="space-y-2 mb-5">
+                <h4 className="text-xs font-black text-gray-300">📊 لوحة صدارة المتصدرين (Leaderboard):</h4>
+                <div className="bg-black/40 border border-[#2d1212] rounded-2xl p-2.5 space-y-1.5 max-h-36 overflow-y-auto">
+                  <div className="flex items-center justify-between text-[11px] font-black bg-red-950/20 px-2 py-1 rounded border border-red-500/10">
+                    <span className="text-red-400 font-mono">2,450 نقطة</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-gray-400">#1</span>
+                      <span className="text-white">الجنرال الصخر 🥇</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] font-black bg-red-950/10 px-2 py-1 rounded border border-red-500/5">
+                    <span className="text-red-400 font-mono">1,980 نقطة</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-gray-400">#2</span>
+                      <span className="text-white">المحارب الميداني 🥈</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] font-black bg-red-950/10 px-2 py-1 rounded border border-red-500/5">
+                    <span className="text-red-400 font-mono">1,820 نقطة</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-gray-400">#3</span>
+                      <span className="text-white">قناص الصحراء 🥉</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] font-black bg-amber-500/10 px-2 py-1.5 rounded border border-amber-500/30">
+                    <span className="text-amber-400 font-mono font-bold">1,250 نقطة</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-amber-400 font-bold font-mono">#8 (أنت)</span>
+                      <span className="text-amber-400 font-bold">{settings.playerName || 'الصقر العسكري'} ⭐</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundManager.playButtonClick();
+                    setShowTournamentModal(false);
+                    showToast('⚔️ تم تفعيل نمط البطولة الأسبوعية! ابدأ اللعب فوراً لحصد نقاط البطولة!');
+                  }}
+                  className="py-2.5 px-4 bg-gradient-to-r from-red-600 to-amber-500 hover:brightness-110 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-lg active:scale-95 transition-all"
+                >
+                  <span>دخول معركة البطولة ⚔️</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundManager.playButtonClick();
+                    setShowTournamentModal(false);
+                  }}
+                  className="py-2.5 px-4 bg-[#211111] hover:bg-[#341818] text-red-300 border border-red-500/20 font-black text-xs rounded-xl transition-all active:scale-95 cursor-pointer"
+                >
+                  <span>العودة للوبي</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* 1v1 Battle Challenge Animated Overlay */}
       {activeChallenge && (

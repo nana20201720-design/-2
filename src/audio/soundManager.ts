@@ -372,7 +372,7 @@ class SoundManager {
     osc.stop(t + 0.26);
   }
 
-  public playPickup(type: 'health' | 'boost' | 'ammo' | 'weapon') {
+  public playPickup(type: 'health' | 'boost' | 'ammo' | 'weapon' = 'weapon') {
     this.initContext();
     if (!this.ctx || !this.masterGain || this.isMuted) return;
 
@@ -400,6 +400,28 @@ class SoundManager {
 
     osc.start(t);
     osc.stop(t + 0.22);
+  }
+
+  public playLaser() {
+    this.initContext();
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(1400, t);
+    osc.frequency.exponentialRampToValueAtTime(150, t + 0.12);
+
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.14);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(t);
+    osc.stop(t + 0.15);
   }
 
   public playAnnouncer(message: string) {
@@ -602,6 +624,70 @@ class SoundManager {
 
     osc.start(t);
     osc.stop(t + 0.09);
+  }
+
+  public play(soundName: string) {
+    switch (soundName) {
+      case 'menu_select':
+      case 'button_click':
+      case 'click':
+        this.playButtonClick();
+        break;
+      case 'weapon_pickup':
+      case 'pickup':
+        this.playPickup();
+        break;
+      case 'equip':
+      case 'switch':
+      case 'switch_weapon':
+        this.playSwitchWeapon();
+        break;
+      case 'reload':
+      case 'mechanical_click':
+        this.playMechanicalClick();
+        break;
+      case 'laser':
+      case 'laser_blast':
+        this.playLaser();
+        break;
+      case 'pistol':
+      case 'shoot_pistol':
+        this.playPistol();
+        break;
+      case 'rifle':
+      case 'ak47':
+      case 'shoot_rifle':
+        this.playRifle();
+        break;
+      case 'shotgun':
+      case 'shoot_shotgun':
+        this.playShotgun();
+        break;
+      case 'sniper':
+      case 'shoot_sniper':
+        this.playSniper();
+        break;
+      case 'rocket':
+      case 'rocket_launcher':
+      case 'shoot_rocket':
+      case 'explosion':
+        this.playExplosion();
+        break;
+      case 'shield':
+      case 'shield_deflect':
+        this.playShieldDeflect();
+        break;
+      case 'punch':
+      case 'melee':
+        this.playMeleeHit();
+        break;
+      case 'victory':
+        this.playVictory();
+        break;
+      default:
+        this.playButtonClick();
+        break;
+    }
   }
 
   private playNoise(duration: number, volume: number, cutoff: number) {

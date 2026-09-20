@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { soundManager } from '../../audio/soundManager';
 import { haptics } from '../../utils/haptics';
+import { TacticalItemGraphic } from './TacticalItemGraphic';
 
 interface ThrowableItem {
   id: string;
@@ -203,25 +204,7 @@ export const ThrowablesBay: React.FC = () => {
               transition={{ duration: countdown !== null ? 0.3 : 0.4, repeat: countdown !== null ? Infinity : 0 }}
               className="relative w-28 h-28 rounded-2xl bg-gradient-to-br from-[#1c291e] to-[#0d1610] border-2 border-red-500/40 flex flex-col items-center justify-center shadow-2xl"
             >
-              <svg
-                width="52"
-                height="52"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ color: currentItem.color }}
-                className="filter drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]"
-              >
-                <circle cx="12" cy="14" r="6" fill="currentColor" fillOpacity="0.25" />
-                <path d="M10 8V6a2 2 0 0 1 4 0v2" />
-                <path d="M12 2v2" />
-                <path d="M8.5 5.5l1.5 1.5" />
-                <path d="M9 14h6" />
-                <path d="M12 11v6" />
-              </svg>
+              <TacticalItemGraphic id={currentItem.id} className="w-20 h-20 filter drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]" />
 
               {/* Countdown Tag */}
               {countdown !== null && (
@@ -361,21 +344,7 @@ export const ThrowablesBay: React.FC = () => {
               </div>
 
               <div className="h-14 flex items-center justify-center bg-[#070d0a] rounded-xl border border-[#1d2d20] my-1">
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ color: item.color }}
-                >
-                  <circle cx="12" cy="14" r="5" fill="currentColor" fillOpacity="0.2" />
-                  <path d="M10 9V7a2 2 0 0 1 4 0v2" />
-                  <path d="M12 4v2" />
-                </svg>
+                <TacticalItemGraphic id={item.id} className="w-12 h-12" />
               </div>
 
               <div>
