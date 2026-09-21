@@ -1,19 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import * as THREE from 'three';
-import { RotateCw, Sparkles, Zap, Flame, Shield, Crosshair, Volume2, Target, Cpu, User } from 'lucide-react';
-import { ThreeSoldierBuilder } from '../game/threeSoldierBuilder';
+import { RotateCw, Zap, Flame, Shield, Crosshair, Volume2 } from 'lucide-react';
+import { drawSoldier2D } from '../game/soldierVisuals';
 import { WeaponType } from '../types';
 import { soundManager } from '../audio/soundManager';
-import {
-  PreviewEnvironmentType,
-  PREVIEW_ENVIRONMENTS,
-  createEnvironmentBackdrop,
-  EnvironmentInstance,
-} from '../game/threeEnvironments';
+import { PreviewEnvironmentType } from '../game/threeEnvironments';
 import { settingsManager } from '../utils/settingsManager';
-import { lodAndTextureOptimizer } from '../utils/lodAndTextureOptimizer';
 
-interface ThreeSoldierCanvasProps {
+export interface ThreeSoldierCanvasProps {
   camoColor?: string;
   headgear?: string;
   bodyArmor?: string;
@@ -23,6 +16,7 @@ interface ThreeSoldierCanvasProps {
   skinTone?: string;
   weapon?: WeaponType | 'fists' | string;
   trailColor?: string;
+  skinId?: string;
   capeStyle?: 'none' | 'tactical_cape' | 'commando_scarf' | 'full_set';
   enableClothingPhysics?: boolean;
   interactive?: boolean;
@@ -44,327 +38,343 @@ export const ThreeSoldierCanvas: React.FC<ThreeSoldierCanvasProps> = ({
   skinTone = '#fbb587',
   weapon = 'pistol',
   trailColor = '#a855f7',
-  capeStyle = 'full_set',
-  enableClothingPhysics = true,
+  skinId,
   interactive = true,
   showPedestal = true,
   autoRotate = true,
   height = 340,
   className = '',
-  environment,
-  lightingPreset = 'cyber',
 }) => {
-  const mountRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isRotating, setIsRotating] = useState(autoRotate);
-  const [webglFailed, setWebglFailed] = useState(false);
   const [pose, setPose] = useState<'idle' | 'run' | 'jump' | 'flight' | 'crouch' | 'reload' | 'salute' | 'victory'>('idle');
-  const [selectedEnv, setSelectedEnv] = useState<PreviewEnvironmentType>(
-    () => environment || settingsManager.getSettings().previewEnvironment || 'training_grounds'
-  );
-
-  useEffect(() => {
-    if (environment && environment !== selectedEnv) {
-      setSelectedEnv(environment);
-    }
-  }, [environment]);
-
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const soldierRef = useRef<ThreeSoldierBuilder | null>(null);
-  const animFrameRef = useRef<number | null>(null);
-  const pedestalGroupRef = useRef<THREE.Group | null>(null);
-  const envInstRef = useRef<EnvironmentInstance | null>(null);
+  const [isFiring, setIsFiring] = useState(false);
 
   // Interaction tracking
+  const rotationAngleRef = useRef(0);
   const isDraggingRef = useRef(false);
-  const prevPointerRef = useRef({ x: 0, y: 0 });
-  const rotationRef = useRef({ y: 0, x: 0 });
+  const lastMouseXRef = useRef(0);
+  const animFrameRef = useRef<number | null>(null);
+  const recoilRef = useRef(0);
+  const muzzleFlashRef = useRef(0);
 
-  // Initialize Three.js scene
-  useEffect(() => {
-    const container = mountRef.current;
-    if (!container) return;
+  // Resolved skin
+  const resolvedSkinId = skinId || settingsManager.getSettings().equippedSkin || 'woodland_camo';
 
-    let cleanupFn = () => {};
-
+  // Handle firing test
+  const handleTriggerShot = () => {
+    setIsFiring(true);
+    recoilRef.current = 10;
+    muzzleFlashRef.current = 0.12;
     try {
-      const width = container.clientWidth || 340;
-      const h = typeof height === 'number' ? height : container.clientHeight || 340;
-
-      // 1. Scene
-      const scene = new THREE.Scene();
-      sceneRef.current = scene;
-
-      // 2. Camera
-      const camera = new THREE.PerspectiveCamera(38, width / h, 0.1, 100);
-      camera.position.set(0, 1.2, 4.2);
-      camera.lookAt(0, 0.9, 0);
-      cameraRef.current = camera;
-
-      // 3. Renderer with soft shadows and alpha transparency
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-      renderer.setSize(width, h);
-      renderer.setPixelRatio(lodAndTextureOptimizer.getOptimalPixelRatio());
-      renderer.shadowMap.enabled = lodAndTextureOptimizer.getQuality() !== 'low';
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.15;
-      rendererRef.current = renderer;
-
-      container.innerHTML = '';
-      container.appendChild(renderer.domElement);
-
-      // 4. Create 3D Environment Backdrop & Lighting
-      const envInst = createEnvironmentBackdrop(selectedEnv);
-      envInstRef.current = envInst;
-      scene.add(envInst.group);
-
-    // 5. Holographic Pedestal
-    if (showPedestal) {
-      const pedestalGroup = new THREE.Group();
-      pedestalGroupRef.current = pedestalGroup;
-
-      const rimColor = selectedEnv === 'training_grounds' ? 0xf59e0b : selectedEnv === 'military_bunker' ? 0xef4444 : 0x06b6d4;
-
-      // Base disc
-      const discGeo = new THREE.CylinderGeometry(1.3, 1.4, 0.1, 32);
-      const discMat = new THREE.MeshStandardMaterial({
-        color: 0x09090b,
-        metalness: 0.9,
-        roughness: 0.2,
-      });
-      const discMesh = new THREE.Mesh(discGeo, discMat);
-      discMesh.position.y = -0.05;
-      discMesh.receiveShadow = true;
-      pedestalGroup.add(discMesh);
-
-      // Glowing Rim
-      const ringGeo = new THREE.TorusGeometry(1.2, 0.03, 16, 48);
-      ringGeo.rotateX(Math.PI / 2);
-      const ringMat = new THREE.MeshBasicMaterial({ color: rimColor });
-      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-      ringMesh.position.y = 0.01;
-      pedestalGroup.add(ringMesh);
-
-      // Inner tech lines
-      const innerRingGeo = new THREE.RingGeometry(0.5, 0.54, 32);
-      innerRingGeo.rotateX(-Math.PI / 2);
-      const innerRingMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide });
-      const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
-      innerRing.position.y = 0.02;
-      pedestalGroup.add(innerRing);
-
-      scene.add(pedestalGroup);
+      soundManager.playWeaponSound(weapon as WeaponType);
+    } catch {
+      // Audio fallback
     }
+    setTimeout(() => setIsFiring(false), 200);
+  };
 
-    // 6. Build Soldier Mesh
-    const soldier = new ThreeSoldierBuilder({
-      camoColor,
-      headgear,
-      bodyArmor,
-      eyewear,
-      beard,
-      jetpackStyle,
-      skinTone,
-      weapon,
-      trailColor,
-      capeStyle,
-      enableClothingPhysics,
-    });
-    soldierRef.current = soldier;
-    scene.add(soldier.root);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-    // 7. Fixed Timestep & Clamped Animation Loop
-    let clock = new THREE.Clock();
-    let isTabVisible = true;
+    let startTime = performance.now();
+    let lastTime = startTime;
 
-    const handleVisibilityChange = () => {
-      isTabVisible = document.visibilityState !== 'hidden';
-      if (isTabVisible) {
-        clock.getDelta(); // Reset clock delta on tab regain
+    const render = (now: number) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      const elapsed = (now - startTime) / 1000;
+      lastTime = now;
+
+      // Update recoil and muzzle flash
+      if (recoilRef.current > 0) {
+        recoilRef.current = Math.max(0, recoilRef.current - dt * 35);
       }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    const animate = () => {
-      animFrameRef.current = requestAnimationFrame(animate);
-
-      // Skip processing when tab is hidden to conserve GPU/CPU memory and battery
-      if (!isTabVisible) return;
-
-      const rawDelta = clock.getDelta();
-      // Clamp delta time to max 33.3ms (30 FPS limit) to prevent lag spikes or animation leaps
-      const delta = lodAndTextureOptimizer.clampDelta(rawDelta, 0.0333);
-      const elapsedTime = clock.getElapsedTime();
-
-      // Update environment animation (dust, rotating holo, beacon lights)
-      if (envInstRef.current) {
-        envInstRef.current.update(delta, elapsedTime);
+      if (muzzleFlashRef.current > 0) {
+        muzzleFlashRef.current = Math.max(0, muzzleFlashRef.current - dt);
       }
 
-      if (soldierRef.current) {
-        // Handle Auto-rotation
-        if (isRotating && !isDraggingRef.current) {
-          rotationRef.current.y += 0.012;
+      // Auto rotation
+      if (isRotating && !isDraggingRef.current) {
+        rotationAngleRef.current += dt * 1.2;
+      }
+
+      // Resize canvas to container
+      const container = containerRef.current;
+      if (container) {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = container.getBoundingClientRect();
+        const displayW = Math.max(rect.width, 240);
+        const displayH = typeof height === 'number' ? height : Math.max(rect.height, 300);
+
+        if (canvas.width !== displayW * dpr || canvas.height !== displayH * dpr) {
+          canvas.width = displayW * dpr;
+          canvas.height = displayH * dpr;
         }
 
-        soldierRef.current.root.rotation.y = rotationRef.current.y;
-        soldierRef.current.root.rotation.x = rotationRef.current.x;
+        ctx.resetTransform();
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, displayW, displayH);
 
-        // Advance dynamic clothing cloth/accessory physics simulation
-        soldierRef.current.updatePhysics(rotationRef.current.y, delta);
+        const centerX = displayW / 2;
+        const baseCenterY = displayH * 0.58;
 
-        // Advance 3D Skeletal Animation Engine with smooth state lerp blending
-        soldierRef.current.updateAnimationState(pose, elapsedTime, delta);
+        // Pose parameters
+        const isFlight = pose === 'flight';
+        const isRun = pose === 'run';
+        const isJump = pose === 'jump';
+        const isCrouch = pose === 'crouch';
+        const isSalute = pose === 'salute';
+        const isVictory = pose === 'victory';
+
+        // Vertical hover oscillation
+        let hoverY = Math.sin(elapsed * 3) * 3;
+        if (isFlight) {
+          hoverY = -24 + Math.sin(elapsed * 16) * 5;
+        } else if (isJump) {
+          hoverY = -18 + Math.abs(Math.sin(elapsed * 4)) * -10;
+        } else if (isRun) {
+          hoverY = Math.abs(Math.sin(elapsed * 10)) * -4;
+        } else if (isCrouch) {
+          hoverY = 6;
+        }
+
+        // ==========================================
+        // 1. PEDESTAL & SHADOW
+        // ==========================================
+        if (showPedestal) {
+          const shadowScale = isFlight ? 0.55 : isJump ? 0.7 : 1.0;
+          const shadowAlpha = isFlight ? 0.25 : 0.55;
+
+          // Soft ground shadow
+          ctx.fillStyle = `rgba(0, 0, 0, ${shadowAlpha})`;
+          ctx.beginPath();
+          ctx.ellipse(centerX, baseCenterY + 44, 48 * shadowScale, 13 * shadowScale, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Outer Pedestal Disc
+          ctx.fillStyle = '#09090b';
+          ctx.strokeStyle = '#27272a';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.ellipse(centerX, baseCenterY + 44, 60, 16, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          // Glowing Launchpad Ring
+          const ringColor = isFlight ? '#a855f7' : '#f59e0b';
+          ctx.strokeStyle = ringColor;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.ellipse(centerX, baseCenterY + 44, 52, 13.5, 0, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Pedestal radial glow
+          const pedestalGrad = ctx.createRadialGradient(
+            centerX,
+            baseCenterY + 44,
+            5,
+            centerX,
+            baseCenterY + 44,
+            65
+          );
+          pedestalGrad.addColorStop(0, isFlight ? 'rgba(168, 85, 247, 0.45)' : 'rgba(245, 158, 11, 0.35)');
+          pedestalGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = pedestalGrad;
+          ctx.beginPath();
+          ctx.ellipse(centerX, baseCenterY + 44, 65, 18, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // ==========================================
+        // 2. JETPACK THRUSTER FLAMES & SMOKE
+        // ==========================================
+        if (isFlight) {
+          const jetX = centerX - 12;
+          const jetY = baseCenterY + hoverY + 12;
+          
+          // Jet flame
+          const flameH = 24 + Math.random() * 12;
+          const flameGrad = ctx.createLinearGradient(jetX, jetY, jetX, jetY + flameH);
+          flameGrad.addColorStop(0, '#ffffff');
+          flameGrad.addColorStop(0.3, '#38bdf8');
+          flameGrad.addColorStop(0.7, '#a855f7');
+          flameGrad.addColorStop(1, 'rgba(168, 85, 247, 0)');
+          ctx.fillStyle = flameGrad;
+          ctx.beginPath();
+          ctx.ellipse(jetX, jetY + flameH * 0.4, 7, flameH * 0.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Trailing exhaust smoke rings
+          for (let si = 1; si <= 3; si++) {
+            const smokeY = jetY + flameH + si * 10 + (elapsed * 25) % 15;
+            const smokeRadius = 5 + si * 3.5;
+            ctx.fillStyle = `rgba(168, 85, 247, ${0.4 / si})`;
+            ctx.beginPath();
+            ctx.arc(jetX + (Math.sin(elapsed * 10 + si) * 4), smokeY, smokeRadius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // ==========================================
+        // 3. DRAW AUTHENTIC 2D MINI MILITIA SOLDIER
+        // ==========================================
+        ctx.save();
+        ctx.translate(centerX, baseCenterY + hoverY);
+
+        // Determine facing direction from rotation angle
+        const normAngle = ((rotationAngleRef.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        const isFacingRight = normAngle < Math.PI * 0.5 || normAngle > Math.PI * 1.5;
+
+        // Calculate aim angle for pose
+        let aimAngle = 0;
+        if (isVictory) {
+          aimAngle = -Math.PI * 0.45; // Gun pointing triumphantly up!
+        } else if (pose === 'reload') {
+          aimAngle = Math.PI * 0.25; // Gun pointing down to reload!
+        } else if (isFlight) {
+          aimAngle = -Math.PI * 0.15;
+        }
+
+        drawSoldier2D(ctx, {
+          skinId: resolvedSkinId,
+          camoColor,
+          headgear,
+          bodyArmor,
+          eyewear,
+          beard,
+          jetpackStyle,
+          trailColor,
+          skinTone,
+          weapon: isSalute ? 'fists' : weapon,
+          aimAngle,
+          isFacingRight,
+          isJetpacking: isFlight,
+          isGrounded: !isFlight && !isJump,
+          walkCycle: isRun ? elapsed * 14 : isFlight ? 0 : elapsed * 2,
+          isCrouching: isCrouch,
+          recoilOffset: recoilRef.current,
+          muzzleFlashTimer: muzzleFlashRef.current,
+          animTime: elapsed,
+          scale: 2.2, // High resolution preview scale
+          isSaluting: isSalute,
+          saluteTime: elapsed,
+        });
+
+        ctx.restore();
       }
 
-      if (pedestalGroupRef.current) {
-        pedestalGroupRef.current.rotation.y = elapsedTime * 0.2;
-      }
-
-      renderer.render(scene, camera);
+      animFrameRef.current = requestAnimationFrame(render);
     };
 
-    animate();
-
-    // Resize observer
-    const handleResize = () => {
-      if (!container || !cameraRef.current || !rendererRef.current) return;
-      const newW = container.clientWidth;
-      const newH = typeof height === 'number' ? height : container.clientHeight;
-      cameraRef.current.aspect = newW / newH;
-      cameraRef.current.updateProjectionMatrix();
-      rendererRef.current.setSize(newW, newH);
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    cleanupFn = () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('resize', handleResize);
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      if (envInstRef.current) envInstRef.current.cleanup();
-      if (sceneRef.current) lodAndTextureOptimizer.disposeHierarchy(sceneRef.current);
-      if (rendererRef.current) {
-        lodAndTextureOptimizer.disposeRenderer(rendererRef.current);
-      }
-    };
-    } catch (err) {
-      console.warn("WebGL creation failed, showing 2D fallback:", err);
-      setWebglFailed(true);
-    }
+    animFrameRef.current = requestAnimationFrame(render);
 
     return () => {
-      cleanupFn();
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [height, selectedEnv, showPedestal]);
+  }, [
+    camoColor,
+    headgear,
+    bodyArmor,
+    eyewear,
+    beard,
+    jetpackStyle,
+    skinTone,
+    weapon,
+    trailColor,
+    resolvedSkinId,
+    pose,
+    isRotating,
+    showPedestal,
+    height,
+  ]);
 
-  // Update soldier configuration whenever props change
-  useEffect(() => {
-    if (soldierRef.current) {
-      soldierRef.current.updateConfig({
-        camoColor,
-        headgear,
-        bodyArmor,
-        eyewear,
-        beard,
-        jetpackStyle,
-        skinTone,
-        weapon,
-        trailColor,
-        capeStyle,
-        enableClothingPhysics,
-      });
-    }
-  }, [camoColor, headgear, bodyArmor, eyewear, beard, jetpackStyle, skinTone, weapon, trailColor, capeStyle, enableClothingPhysics]);
-
-  // Pointer interactions for 360 rotation
+  // Pointer interaction for rotation
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!interactive) return;
     isDraggingRef.current = true;
-    prevPointerRef.current = { x: e.clientX, y: e.clientY };
+    lastMouseXRef.current = e.clientX;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!interactive || !isDraggingRef.current) return;
-    const deltaX = e.clientX - prevPointerRef.current.x;
-    const deltaY = e.clientY - prevPointerRef.current.y;
-    rotationRef.current.y += deltaX * 0.015;
-    rotationRef.current.x = Math.max(-0.35, Math.min(0.35, rotationRef.current.x + deltaY * 0.01));
-    prevPointerRef.current = { x: e.clientX, y: e.clientY };
+    if (!isDraggingRef.current || !interactive) return;
+    const dx = e.clientX - lastMouseXRef.current;
+    lastMouseXRef.current = e.clientX;
+    rotationAngleRef.current += dx * 0.015;
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
     isDraggingRef.current = false;
-  };
-
-  const handleTestShot = () => {
-    if (soldierRef.current) {
-      soldierRef.current.triggerMuzzleFlash();
-      soundManager.play('shoot_pistol');
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // pointer release fallback
     }
   };
 
-  if (webglFailed) {
-    return (
-      <div className={`flex flex-col items-center justify-center bg-gradient-to-b from-[#111c14] to-[#0a100c] border border-[#2a4531]/40 rounded-2xl text-center p-4 ${className}`} style={{ height }}>
-        <div className="w-14 h-14 rounded-full bg-cyan-500/10 flex items-center justify-center mb-2 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.15)] animate-pulse">
-          <User className="w-7 h-7 text-cyan-400" />
-        </div>
-        <span className="text-xs font-black text-cyan-300 font-mono tracking-wider">SOLDIER SPEC</span>
-        <span className="text-[10px] text-gray-400 mt-1">عرض تكتيكي 2D (اضغط للمعاينة الكاملة)</span>
-      </div>
-    );
-  }
-
   return (
-    <div className={`relative w-full overflow-hidden select-none ${className}`} style={{ height }}>
-      {/* 3D WebGL Canvas Mount */}
-      <div
-        ref={mountRef}
+    <div
+      ref={containerRef}
+      className={`relative w-full overflow-hidden flex flex-col items-center select-none bg-gradient-to-b from-neutral-950 via-[#0a0f0d] to-neutral-950 rounded-2xl border border-neutral-800/80 ${className}`}
+      style={{ height: typeof height === 'number' ? `${height}px` : height }}
+    >
+      {/* Interactive 2D Canvas */}
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full cursor-grab active:cursor-grabbing touch-none block"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
       />
 
-      {/* 3D Holographic Controls & Badge Overlay */}
-      {interactive && (
-        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
-          <button
-            onClick={() => setIsRotating(!isRotating)}
-            title="تبديل الدوران التلقائي 3D"
-            className={`p-1.5 rounded-lg text-xs font-mono flex items-center gap-1 border backdrop-blur-md transition-all cursor-pointer ${
-              isRotating
-                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
-                : 'bg-neutral-900/60 text-neutral-400 border-white/10'
-            }`}
-          >
-            <RotateCw className={`w-3.5 h-3.5 ${isRotating ? 'animate-spin' : ''}`} />
-            <span className="text-[10px] hidden sm:inline">3D 360°</span>
-          </button>
+      {/* Top Left Badge: Authentic 2D Mini Militia Commando */}
+      <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/75 border border-emerald-500/40 backdrop-blur-md pointer-events-none z-10 shadow-lg">
+        <Shield className="w-3.5 h-3.5 text-emerald-400" />
+        <span className="text-[10px] font-black text-emerald-300 tracking-wider">
+          مقاتل 2D أصلي (MINI MILITIA)
+        </span>
+      </div>
 
+      {/* Top Right Quick Action Buttons */}
+      {interactive && (
+        <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-10">
+          {/* Test Firing Shot */}
           <button
-            onClick={handleTestShot}
-            title="تجربة إطلاق نار ثلاثي الأبعاد"
-            className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 text-xs backdrop-blur-md transition-all active:scale-95 shadow-[0_0_10px_rgba(239,68,68,0.3)] cursor-pointer"
+            onClick={handleTriggerShot}
+            title="تجربة إطلاق النار"
+            className="p-1.5 rounded-lg bg-red-950/80 border border-red-500/50 hover:bg-red-800/80 text-red-300 transition-all cursor-pointer shadow-md hover:scale-105 active:scale-95"
           >
             <Crosshair className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Auto Rotate Toggle */}
+          <button
+            onClick={() => setIsRotating(!isRotating)}
+            title={isRotating ? 'إيقاف التدوير' : 'تشغيل التدوير التلقائي'}
+            className={`p-1.5 rounded-lg border transition-all cursor-pointer shadow-md hover:scale-105 active:scale-95 ${
+              isRotating
+                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                : 'bg-neutral-900/80 border-neutral-700 text-neutral-400'
+            }`}
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${isRotating ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
           </button>
         </div>
       )}
 
-      {/* Pose Selector floating toolbar */}
+      {/* Bottom Floating Pose Bar */}
       {interactive && (
-        <div className="absolute bottom-2 inset-x-2 flex justify-center items-center gap-1 z-10 pointer-events-auto">
-          <div className="flex items-center gap-1 bg-black/80 backdrop-blur-md px-2 py-1 rounded-full border border-white/10 shadow-xl overflow-x-auto max-w-full">
+        <div className="absolute bottom-2.5 left-0 right-0 flex justify-center px-2 pointer-events-auto z-10">
+          <div className="flex items-center gap-1 p-1 rounded-2xl bg-black/80 border border-neutral-800 backdrop-blur-md shadow-2xl overflow-x-auto max-w-full">
             <button
               onClick={() => setPose('idle')}
               className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap ${
                 pose === 'idle'
-                  ? 'bg-cyan-500 text-black shadow-[0_0_8px_rgba(6,182,212,0.6)]'
+                  ? 'bg-amber-500 text-black shadow-[0_0_8px_rgba(245,158,11,0.6)]'
                   : 'text-neutral-400 hover:text-white'
               }`}
             >
@@ -374,31 +384,22 @@ export const ThreeSoldierCanvas: React.FC<ThreeSoldierCanvasProps> = ({
               onClick={() => setPose('run')}
               className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap ${
                 pose === 'run'
-                  ? 'bg-lime-500 text-black shadow-[0_0_8px_rgba(132,204,22,0.6)]'
+                  ? 'bg-cyan-500 text-black shadow-[0_0_8px_rgba(6,182,212,0.6)]'
                   : 'text-neutral-400 hover:text-white'
               }`}
             >
-              ركض 3D
-            </button>
-            <button
-              onClick={() => setPose('jump')}
-              className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap ${
-                pose === 'jump'
-                  ? 'bg-orange-500 text-black shadow-[0_0_8px_rgba(249,115,22,0.6)]'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              قفز
+              ركض
             </button>
             <button
               onClick={() => setPose('flight')}
-              className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-0.5 ${
                 pose === 'flight'
                   ? 'bg-purple-500 text-white shadow-[0_0_8px_rgba(168,85,247,0.6)]'
                   : 'text-neutral-400 hover:text-white'
               }`}
             >
-              طيران 3D
+              <Flame className="w-2.5 h-2.5" />
+              طيران
             </button>
             <button
               onClick={() => setPose('crouch')}
@@ -409,16 +410,6 @@ export const ThreeSoldierCanvas: React.FC<ThreeSoldierCanvasProps> = ({
               }`}
             >
               احتماء
-            </button>
-            <button
-              onClick={() => setPose('reload')}
-              className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap ${
-                pose === 'reload'
-                  ? 'bg-amber-500 text-black shadow-[0_0_8px_rgba(245,158,11,0.6)]'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              تلقيم
             </button>
             <button
               onClick={() => setPose('salute')}

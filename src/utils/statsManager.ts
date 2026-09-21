@@ -15,6 +15,7 @@ export interface MatchHistoryItem {
   maxStreak: number;
   isVictory: boolean;
   score: number;
+  damage?: number;
 }
 
 export interface PlayerLifetimeStats {
@@ -28,6 +29,10 @@ export interface PlayerLifetimeStats {
   highestSurvivalWave: number;
   matchHistory: MatchHistoryItem[];
   coins: number;
+  // Personal Best Records (الأرقام القياسية الشخصية)
+  bestKills: number;
+  bestMatchTimeSeconds: number;
+  bestAccuracy: number;
 }
 
 export interface RankInfo {
@@ -65,6 +70,9 @@ const DEFAULT_STATS: PlayerLifetimeStats = {
   highestSurvivalWave: 1,
   matchHistory: [],
   coins: 100, // 100 starting welcome coins!
+  bestKills: 0,
+  bestMatchTimeSeconds: 0,
+  bestAccuracy: 0,
 };
 
 const STORAGE_KEY = 'mini_battle_lifetime_stats_v1';
@@ -80,6 +88,9 @@ export const statsManager = {
         ...parsed,
         matchHistory: parsed.matchHistory || [],
         coins: parsed.coins !== undefined ? parsed.coins : 100,
+        bestKills: parsed.bestKills || (parsed.matchHistory && parsed.matchHistory.length > 0 ? Math.max(...parsed.matchHistory.map((m: any) => m.kills || 0)) : 0),
+        bestMatchTimeSeconds: parsed.bestMatchTimeSeconds || 0,
+        bestAccuracy: parsed.bestAccuracy || (parsed.totalHeadshots && parsed.totalKills ? Math.min(100, Math.round((parsed.totalHeadshots / Math.max(1, parsed.totalKills)) * 100)) : 0),
       };
     } catch {
       return DEFAULT_STATS;
@@ -104,12 +115,25 @@ export const statsManager = {
     isVictory: boolean;
     score: number;
     wave?: number;
+    durationSeconds?: number;
+    accuracy?: number;
   }): PlayerLifetimeStats {
     const current = this.getStats();
     const currentCoins = current.coins !== undefined ? current.coins : 100;
     const earnedCoins = 50 + (match.isVictory ? 100 : 0) + (match.kills * 15) + (match.headshots * 10);
 
+    const matchDuration = match.durationSeconds || 0;
+    const currentBestTime = current.bestMatchTimeSeconds || 0;
+    const newBestTime = match.isVictory && matchDuration > 0
+      ? (currentBestTime === 0 ? matchDuration : Math.min(currentBestTime, matchDuration))
+      : currentBestTime;
+
+    const calculatedAccuracy = match.accuracy !== undefined
+      ? match.accuracy
+      : (match.kills > 0 ? Math.min(100, Math.round((match.headshots / Math.max(1, match.kills)) * 100)) : 0);
+
     const updated: PlayerLifetimeStats = {
+      ...current,
       totalKills: current.totalKills + match.kills,
       totalHeadshots: current.totalHeadshots + match.headshots,
       totalWins: current.totalWins + (match.isVictory ? 1 : 0),
@@ -118,6 +142,9 @@ export const statsManager = {
       longestKillStreak: Math.max(current.longestKillStreak, match.maxStreak),
       totalDamageDealt: current.totalDamageDealt + match.damage,
       highestSurvivalWave: Math.max(current.highestSurvivalWave, match.wave || 1),
+      bestKills: Math.max(current.bestKills || 0, match.kills),
+      bestMatchTimeSeconds: newBestTime,
+      bestAccuracy: Math.max(current.bestAccuracy || 0, calculatedAccuracy),
       matchHistory: [
         {
           id: `${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -129,6 +156,7 @@ export const statsManager = {
           maxStreak: match.maxStreak,
           isVictory: match.isVictory,
           score: match.score,
+          damage: match.damage,
         },
         ...(current.matchHistory || []),
       ].slice(0, 15), // Keep last 15 matches

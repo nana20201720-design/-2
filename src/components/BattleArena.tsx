@@ -50,6 +50,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
+  const [activeEngine, setActiveEngine] = useState<GameEngine | null>(null);
 
   // Modal states
   const [isPaused, setIsPaused] = useState(false);
@@ -138,12 +139,18 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       case 'navy_seal': return '#1e3a8a';
       case 'cyber_cyan': return '#0891b2';
       case 'royal_gold': return '#ca8a04';
+      case 'pharaoh_suit': return '#eab308';
+      case 'tesla_suit': return '#0ea5e9';
+      case 'ninja_suit': return '#09090b';
+      case 'joker_suit': return '#701a75';
+      case 'ghillie_suit': return '#14532d';
       case 'woodland_camo':
       default: return '#2d4a22';
     }
   };
 
   const activeCustomization: PlayerCustomization = {
+    skinId: customization?.skinId || savedSettings.equippedSkin || 'woodland_camo',
     camoColor: customization?.camoColor || getCamoHexFromSkinId(savedSettings.equippedSkin),
     headgear: customization?.headgear || savedSettings.equippedHeadgear || 'camo_helmet',
     bodyArmor: customization?.bodyArmor || savedSettings.equippedArmor || 'molle_vest',
@@ -179,6 +186,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     if (engineRef.current) {
       engineRef.current.stop();
       engineRef.current = null;
+      setActiveEngine(null);
     }
 
     const events: GameEngineEvents = {
@@ -280,6 +288,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
     engine.start();
     engineRef.current = engine;
+    setActiveEngine(engine);
     setIsPaused(false);
     setIsGameOver(false);
   }, [mode, spectatorMode]);
@@ -338,33 +347,139 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       if (engineRef.current) {
         engineRef.current.stop();
         engineRef.current = null;
+        setActiveEngine(null);
       }
     };
   }, [initEngine, roomCode]);
 
-  // Sync state from engine to React HUD (using requestAnimationFrame ticker)
+  // Track previous states with refs to eliminate redundant React re-renders
+  const lastPlayerSyncRef = useRef<{
+    health: number;
+    maxHealth: number;
+    fuel: number;
+    weaponKey: string;
+    ammoCount: number;
+    grenades: number;
+    isReloading: boolean;
+    isDead: boolean;
+    kills: number;
+    deaths: number;
+  } | null>(null);
+
+  const lastMatchSyncRef = useRef<{
+    timerSec: number;
+    blueScore: number;
+    redScore: number;
+    wave: number;
+    activePlayerIdx?: number;
+    playerCount: number;
+  } | null>(null);
+
+  const lastNearbyPickupIdRef = useRef<number | null>(null);
+  const lastScopeLevelRef = useRef<number>(1);
+  const lastNetworkBroadcastTimeRef = useRef<number>(0);
+
+  // Sync state from engine to React HUD (optimized RAF ticker with diff checking)
   useEffect(() => {
     let animId: number;
-    let lastSync = 0;
+    let lastTick = 0;
 
     const syncTick = (time: number) => {
       if (engineRef.current && !isPaused && !isGameOver) {
-        // Sync HUD at ~25-30fps to avoid React render thrashing while canvas runs at 60fps
-        if (time - lastSync > 35) {
-          lastSync = time;
+        // Run HUD diff-check at ~30 FPS
+        if (time - lastTick >= 33) {
+          lastTick = time;
           const currentP = engineRef.current.getPlayerState();
+
           if (currentP) {
-            setPlayerState({ ...currentP });
-            // Broadcast local player movement & health to Firebase Realtime Match state
-            matchSyncManager.sendLocalPlayerState(currentP);
+            // Throttled Network Broadcast (~8-10 times per second)
+            if (time - lastNetworkBroadcastTimeRef.current >= 120) {
+              lastNetworkBroadcastTimeRef.current = time;
+              try {
+                matchSyncManager.sendLocalPlayerState(currentP);
+              } catch {
+                // Gracefully ignore transient sync errors
+              }
+            }
+
+            // Check if player stats changed before dispatching React state
+            const currWeapon = currentP.weapons[currentP.currentWeaponIndex] || 'pistol';
+            const currAmmo = currentP.ammo[currWeapon] ?? 0;
+            const prev = lastPlayerSyncRef.current;
+
+            const hasPlayerChanged =
+              !prev ||
+              prev.health !== currentP.health ||
+              prev.maxHealth !== currentP.maxHealth ||
+              Math.floor(prev.fuel) !== Math.floor(currentP.fuel) ||
+              prev.weaponKey !== currWeapon ||
+              prev.ammoCount !== currAmmo ||
+              prev.grenades !== currentP.grenades ||
+              prev.isReloading !== currentP.isReloading ||
+              prev.isDead !== currentP.isDead ||
+              prev.kills !== currentP.kills ||
+              prev.deaths !== currentP.deaths;
+
+            if (hasPlayerChanged) {
+              lastPlayerSyncRef.current = {
+                health: currentP.health,
+                maxHealth: currentP.maxHealth,
+                fuel: currentP.fuel,
+                weaponKey: currWeapon,
+                ammoCount: currAmmo,
+                grenades: currentP.grenades,
+                isReloading: currentP.isReloading,
+                isDead: currentP.isDead,
+                kills: currentP.kills,
+                deaths: currentP.deaths,
+              };
+              setPlayerState({ ...currentP });
+            }
           }
+
+          // Check match info diff
           const mInfo = engineRef.current.getMatchInfo();
           if (mInfo) {
-            setMatchInfo(mInfo);
+            const timerSec = Math.floor(mInfo.timer);
+            const prevM = lastMatchSyncRef.current;
+            const pCount = mInfo.players ? mInfo.players.length : 0;
+
+            const hasMatchChanged =
+              !prevM ||
+              prevM.timerSec !== timerSec ||
+              prevM.blueScore !== mInfo.blueScore ||
+              prevM.redScore !== mInfo.redScore ||
+              prevM.wave !== mInfo.wave ||
+              prevM.activePlayerIdx !== mInfo.activePlayerIndex ||
+              prevM.playerCount !== pCount;
+
+            if (hasMatchChanged) {
+              lastMatchSyncRef.current = {
+                timerSec,
+                blueScore: mInfo.blueScore,
+                redScore: mInfo.redScore,
+                wave: mInfo.wave,
+                activePlayerIdx: mInfo.activePlayerIndex,
+                playerCount: pCount,
+              };
+              setMatchInfo(mInfo);
+            }
           }
-          setScopeLevel(engineRef.current.scopeLevel);
+
+          // Check scope diff
+          const currScope = engineRef.current.scopeLevel;
+          if (currScope !== lastScopeLevelRef.current) {
+            lastScopeLevelRef.current = currScope;
+            setScopeLevel(currScope);
+          }
+
+          // Check nearby weapon pickup diff
           const nb = engineRef.current.getNearbyWeaponPickup();
-          setNearbyWeapon(nb);
+          const newPickupId = nb ? nb.pickupId : null;
+          if (newPickupId !== lastNearbyPickupIdRef.current) {
+            lastNearbyPickupIdRef.current = newPickupId;
+            setNearbyWeapon(nb);
+          }
         }
       }
       animId = requestAnimationFrame(syncTick);
@@ -374,7 +489,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     return () => cancelAnimationFrame(animId);
   }, [isPaused, isGameOver]);
 
-  // Keyboard shortcut for Quick Ground Weapon Swap [F] and Tactical Hologram Wheel [T / Q]
+  // Keyboard shortcut for Quick Ground Weapon Swap [F], Tactical Hologram Wheel [T], and Drop Weapon [Z / X]
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'KeyF') {
@@ -383,6 +498,10 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           if (didSwap) {
             haptics.medium();
           }
+        }
+      } else if (e.code === 'KeyZ' || e.code === 'KeyX') {
+        if (engineRef.current && !isPaused && !isGameOver) {
+          engineRef.current.dropPlayerWeapon();
         }
       } else if (e.code === 'KeyT' || e.code === 'KeyQ') {
         if (!isGameOver) {
@@ -396,82 +515,84 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPaused, isGameOver]);
 
-  // Handlers for HUD actions with tactical haptics
-  const handlePause = () => {
+  // Handlers for HUD actions with tactical haptics (stabilized with useCallback)
+  const handlePause = useCallback(() => {
     soundManager.playButtonClick();
     haptics.light();
     if (engineRef.current) {
       engineRef.current.setPaused(true);
     }
     setIsPaused(true);
-  };
+  }, []);
 
-  const handleResume = () => {
+  const handleResume = useCallback(() => {
     soundManager.playButtonClick();
     haptics.light();
     if (engineRef.current) {
       engineRef.current.setPaused(false);
     }
     setIsPaused(false);
-  };
+  }, []);
 
-  const handleRestart = () => {
+  const handleRestart = useCallback(() => {
     soundManager.playButtonClick();
     haptics.medium();
     initEngine();
-  };
+  }, [initEngine]);
 
-  const handleToggleMute = () => {
-    const nextMute = !isMuted;
-    setIsMuted(nextMute);
-    soundManager.setMuted(nextMute);
+  const handleToggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      soundManager.setMuted(next);
+      return next;
+    });
     haptics.light();
-  };
+  }, []);
 
-  const handleSwitchWeapon = () => {
+  const handleSwitchWeapon = useCallback(() => {
     haptics.medium();
     if (engineRef.current) {
       engineRef.current.switchPlayerWeapon();
     }
-  };
+  }, []);
 
-  const handleDropWeapon = () => {
+  const handleDropWeapon = useCallback(() => {
     haptics.medium();
     if (engineRef.current) {
       engineRef.current.dropPlayerWeapon();
     }
-  };
+  }, []);
 
-  const handleSwapWeapon = () => {
+  const handleSwapWeapon = useCallback(() => {
     haptics.medium();
     if (engineRef.current) {
       engineRef.current.swapWithNearbyWeapon();
     }
-  };
+  }, []);
 
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     haptics.medium();
     if (engineRef.current) {
       engineRef.current.reloadPlayer();
     }
-  };
+  }, []);
 
-  const handleToggleScope = () => {
+  const handleToggleScope = useCallback(() => {
     haptics.light();
     if (engineRef.current) {
       const nextLevel = engineRef.current.cycleScopeLevel();
       setScopeLevel(nextLevel);
     }
-  };
+  }, []);
 
-  const handleSelectPlayer = (idx: number) => {
+  const handleSelectPlayer = useCallback((idx: number) => {
     if (engineRef.current) {
       soundManager.playButtonClick();
       haptics.light();
       engineRef.current.setActivePlayerIndex(idx);
       setSelectedPlayerIdx(idx);
     }
-  };
+  }, []);
 
   return createPortal(
     <div
@@ -582,7 +703,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
       {/* Dual Joystick & Touch / Keyboard Controls */}
       <TouchControls
-        engine={engineRef.current}
+        engine={activeEngine}
         onPause={handlePause}
         grenadesCount={playerState?.grenades ?? 2}
       />

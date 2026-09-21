@@ -101,30 +101,50 @@ export class BotAIController {
     // 7. Movement & Jetpack navigation
     const targetDist = ai.preferredDistance;
 
+    // Check if under fire / recently hit to initiate active dodging maneuvers
+    const isUnderFire = (bot.hitFlinchTimer && bot.hitFlinchTimer > 0);
+    let dodgeDir = 0;
+    if (isUnderFire && Math.random() < 0.45) {
+      // 45% chance to dodge horizontally away from target's alignment
+      dodgeDir = dx > 0 ? -1 : 1;
+    }
+
     if (dist > targetDist + 60) {
       // Approach target
-      const moveDir = dx > 0 ? 1 : -1;
-      bot.vx += moveDir * 520 * dt;
+      const moveDir = dodgeDir !== 0 ? dodgeDir : (dx > 0 ? 1 : -1);
+      bot.vx += moveDir * 580 * dt;
     } else if (dist < targetDist - 70) {
       // Back away slightly (kiting)
-      const moveDir = dx > 0 ? -1 : 1;
-      bot.vx += moveDir * 380 * dt;
+      const moveDir = dodgeDir !== 0 ? -dodgeDir : (dx > 0 ? -1 : 1);
+      bot.vx += moveDir * 420 * dt;
     } else {
-      // Strafe / oscillate
-      bot.vx *= 0.92;
+      // Strafe / oscillate dynamically
+      if (isUnderFire) {
+        bot.vx += (Math.random() > 0.5 ? 1 : -1) * 380 * dt;
+      } else {
+        bot.vx *= 0.92;
+      }
     }
 
     // Jetpack Decision:
-    // Fly if target is significantly higher, or if jumping over obstacles, or if personality is 'flier'/'rusher'
+    // Fly if target is significantly higher, or if jumping over obstacles, or if personality is 'flier'/'rusher',
+    // or if the bot is actively dodging gunfire under fire!
     const isTargetAbove = dy < -70;
-    const shouldFlyAcrobatic = (ai.personality === 'flier' || ai.personality === 'rusher') && bot.fuel > 25 && Math.random() < 0.08;
+    const isDodgingGunfire = isUnderFire && Math.random() < 0.5;
+    const shouldFlyAcrobatic = (ai.personality === 'flier' || ai.personality === 'rusher' || isDodgingGunfire) && bot.fuel > 25 && Math.random() < 0.12;
     
     if ((isTargetAbove || shouldFlyAcrobatic) && bot.fuel > 15) {
       bot.isJetpacking = true;
       bot.fuel = Math.max(0, bot.fuel - 24 * dt);
-      bot.vy -= 1420 * dt;
+      
+      // If dodging gunfire, use a powerful acrobatic vertical impulse
+      const thrustPower = isDodgingGunfire ? 1680 : 1420;
+      bot.vy -= thrustPower * dt;
+      
       if (Math.abs(dx) > 30) {
-        bot.vx += (dx > 0 ? 1 : -1) * 600 * dt;
+        // Acrobatic zigzag multipliers
+        const zigzagMult = isDodgingGunfire ? (Math.random() > 0.5 ? 1.5 : -1.5) : 1.0;
+        bot.vx += (dx > 0 ? 1 : -1) * 620 * zigzagMult * dt;
       }
     } else if (bot.fuel < 10 || (!isTargetAbove && !shouldFlyAcrobatic)) {
       bot.isJetpacking = false;

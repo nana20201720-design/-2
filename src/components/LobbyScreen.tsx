@@ -37,13 +37,14 @@ import { haptics } from '../utils/haptics';
 import { friendsAndRoomsManager } from '../utils/friendsAndRoomsManager';
 import { BattleArena } from './BattleArena';
 import { GameMode } from '../types';
-import { DailyLoginModal } from './DailyLoginModal';
+import { DailyLoginModal, isWeeklyChestReady } from './DailyLoginModal';
 import { FriendsModal } from './FriendsModal';
 import { MiniMilitiaDoodleSoldier } from './MiniMilitiaDoodleSoldier';
 import { settingsManager } from '../utils/settingsManager';
 import { statsManager } from '../utils/statsManager';
 import { TacticalMapBriefingModal, MapBriefingData } from './TacticalMapBriefingModal';
 import CharacterCustomization from './CharacterCustomization';
+import { AchievementsPanel } from './AchievementsPanel';
 
 export interface LobbyFriend {
   id: string;
@@ -165,6 +166,7 @@ export default function LobbyScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDailyModal, setShowDailyModal] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const [showMedalsModal, setShowMedalsModal] = useState(false);
   const [showTournamentModal, setShowTournamentModal] = useState(false);
   const [showRoomsList, setShowRoomsList] = useState(false);
   const [showMapBriefingModal, setShowMapBriefingModal] = useState(false);
@@ -998,8 +1000,8 @@ export default function LobbyScreen() {
             }}
             className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-black px-3.5 py-1.5 rounded-xl font-black text-xs shadow-lg hover:brightness-110 active:scale-95 transition-all cursor-pointer"
           >
-            <Gift size={14} className="animate-bounce" />
-            <span>مكافآت الحضور اليومي 🎁</span>
+            <Gift size={14} className={isWeeklyChestReady() ? 'animate-bounce text-black' : 'text-neutral-800'} />
+            <span>{isWeeklyChestReady() ? 'الصندوق الأسبوعي (جاهز! 🎁)' : 'الصندوق الأسبوعي 🔒'}</span>
           </button>
         </div>
 
@@ -1483,6 +1485,16 @@ export default function LobbyScreen() {
               <Users size={14} />
               <span>قائمة الأصدقاء ({onlineCount} متصل)</span>
             </button>
+            <button
+              onClick={() => {
+                soundManager.playButtonClick();
+                setShowMedalsModal(true);
+              }}
+              className="px-3.5 py-2 rounded-xl font-black text-xs border border-yellow-500/50 bg-gradient-to-r from-amber-600/90 to-yellow-500/90 hover:brightness-110 text-black shadow-lg backdrop-blur-md transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+            >
+              <Award size={14} />
+              <span>أوسمة المعارك 🎖️</span>
+            </button>
           </div>
 
           <span className="text-[10px] text-gray-400 font-mono hidden sm:inline-block bg-black/50 px-3 py-1 rounded-lg">
@@ -1642,6 +1654,27 @@ export default function LobbyScreen() {
                         showToast(`⚠️ [${friend.name}] مشغول في معركة الآن! انتظر حتى ينتهي.`);
                         return;
                       }
+                      soundManager.playButtonClick();
+                      setShowFriendsModal(true);
+                    }}
+                    disabled={friend.status === 'offline'}
+                    className={`flex-1 py-1.5 rounded-xl font-black text-[11px] flex items-center justify-center gap-1 transition-all shadow ${
+                      friend.status === 'offline'
+                        ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black hover:brightness-110 cursor-pointer active:scale-95'
+                    }`}
+                    title="دعوة لقاعة خاصة (Private Room)"
+                  >
+                    <Lock size={12} />
+                    <span>قاعة خاصة 🔒</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (friend.status === 'in-game') {
+                        showToast(`⚠️ [${friend.name}] مشغول في معركة الآن! انتظر حتى ينتهي.`);
+                        return;
+                      }
                       if (friend.status === 'in-store') {
                         showToast(`🔔 تم إرسال تنبيه إلى [${friend.name}] للخروج من المتجر والانضمام للقتال!`);
                         return;
@@ -1653,25 +1686,15 @@ export default function LobbyScreen() {
                       });
                     }}
                     disabled={friend.status === 'offline'}
-                    className={`flex-1 py-1.5 rounded-xl font-black text-[11px] flex items-center justify-center gap-1 transition-all shadow ${
+                    className={`py-1.5 px-2.5 rounded-xl text-[10px] font-black transition-all ${
                       friend.status === 'offline'
-                        ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                        : friend.status === 'in-store'
-                        ? 'bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-500 text-black hover:brightness-110 cursor-pointer active:scale-95'
-                        : 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black hover:brightness-110 cursor-pointer active:scale-95'
+                        ? 'bg-[#18261d] text-gray-500 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-black cursor-pointer shadow active:scale-95'
                     }`}
+                    title="تحدي 1 ضد 1 سريع"
                   >
-                    {friend.status === 'in-store' ? (
-                      <>
-                        <ShoppingBag size={12} />
-                        <span>تنبيه للانضمام 🔔</span>
-                      </>
-                    ) : (
-                      <>
-                        <Swords size={12} />
-                        <span>تحدي 1 ضد 1 ⚔️</span>
-                      </>
-                    )}
+                    <Swords size={12} />
+                    <span>1v1 ⚔️</span>
                   </button>
 
                   <button
@@ -2170,8 +2193,47 @@ export default function LobbyScreen() {
       <FriendsModal
         isOpen={showFriendsModal}
         onClose={() => setShowFriendsModal(false)}
-        onInviteFriend={(name) => showToast(`📨 تم إرسال دعوة إلى ${name} للانضمام لفريقك!`)}
+        onInviteFriend={(name) => showToast(`📨 تم إرسال دعوة إلى ${name} للانضمام لقاعتك الخاصة!`)}
+        onStartPrivateRoom={(config) => {
+          showToast(`🔒 جاري بدء القاعة الخاصة #${config.roomCode} مع الأصدقاء المدعوين! ⚔️`);
+          let mappedMode: GameMode = 'deathmatch';
+          if (config.mode.includes('Team') || config.mode.includes('فرق')) mappedMode = 'team';
+          else if (config.mode.includes('Survival') || config.mode.includes('بقاء')) mappedMode = 'survival';
+          else if (config.mode.includes('Capture') || config.mode.includes('علم')) mappedMode = 'capture';
+          else mappedMode = 'deathmatch';
+
+          setActiveLobbyMatch({
+            mode: mappedMode,
+            title: `قاعة خاصة: ${config.mode}`,
+            roomCode: config.roomCode,
+          });
+        }}
       />
+
+      {/* Tactical Medals & Achievements Modal Overlay */}
+      <AnimatePresence>
+        {showMedalsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md select-none">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 15 }}
+              className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto no-scrollbar"
+            >
+              <button
+                onClick={() => {
+                  soundManager.playButtonClick();
+                  setShowMedalsModal(false);
+                }}
+                className="absolute top-4 left-4 z-50 w-8 h-8 rounded-full bg-[#18261d] hover:bg-[#23382b] text-gray-300 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-emerald-500/30"
+              >
+                <X size={16} />
+              </button>
+              <AchievementsPanel stats={statsManager.getStats()} />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Weekly Tournaments (البطولات الأسبوعية) modal overlay */}
       <AnimatePresence>

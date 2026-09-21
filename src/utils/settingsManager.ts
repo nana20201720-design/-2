@@ -48,6 +48,8 @@ export interface TacticalSettings {
   };
   isDraggingControls?: boolean;
   unlockedWeapons?: string[];
+  unlockedSkins?: string[];
+  unlockedHeadgears?: string[];
   hasPremiumPass?: boolean;
   claimedPassRewards?: string[];
   killFeedIconStyle: 'classic' | 'bold' | 'neon' | 'minimalist';
@@ -85,7 +87,9 @@ export const DEFAULT_SETTINGS: TacticalSettings = {
   equippedTrail: 'neon_purple',
   equippedPrimaryWeapon: 'm4_rifle',
   equippedSecondaryWeapon: 'm4_rifle',
-  unlockedWeapons: ['m4_rifle'],
+  unlockedWeapons: ['m4_rifle', 'pistol', 'shotgun', 'rocket', 'sniper'],
+  unlockedSkins: ['woodland_camo', 'desert_camo', 'urban_digital', 'stealth_black', 'navy_seal', 'cyber_cyan'],
+  unlockedHeadgears: ['camo_helmet', 'pilot_helmet', 'gas_mask'],
   hasPremiumPass: false,
   claimedPassRewards: [],
   armoryLightingMode: 'pbr',
@@ -130,7 +134,7 @@ class SettingsManager {
   }
 
   public getSettings(): TacticalSettings {
-    return { ...this.settings };
+    return this.settings;
   }
 
   public updateSettings(partial: Partial<TacticalSettings>): TacticalSettings {
@@ -163,9 +167,16 @@ class SettingsManager {
   }
 
   private notifyListeners() {
-    for (const listener of this.listeners) {
-      listener(this.settings);
-    }
+    // Schedule on microtask queue so React listeners aren't called during another component's render phase
+    queueMicrotask(() => {
+      for (const listener of this.listeners) {
+        try {
+          listener(this.settings);
+        } catch (err) {
+          console.error('Settings listener error:', err);
+        }
+      }
+    });
   }
 }
 

@@ -23,6 +23,7 @@ import { getWeaponBiome, WEAPON_BIOMES } from '../utils/weaponEnvironmentThemes'
 
 export interface PreviewableStoreItem {
   id: string;
+  skinId?: string;
   name: string;
   nameEn?: string;
   rarity: 'legendary' | 'epic' | 'rare' | 'common';
@@ -182,10 +183,11 @@ export const Store3DPreviewModal: React.FC<Store3DPreviewModalProps> = ({
                 : 'bg-gradient-to-b from-[#09110b] to-[#040805] border-emerald-500/40 shadow-inner'
             }`}
           >
-            {/* Real 3D WebGL Rendering Canvas based on Category */}
+            {/* Real 2D Authentic Mini Militia Rendering Canvas based on Category */}
             {item.category === 'character' ? (
               <div className="w-full h-full">
                 <ThreeSoldierCanvas
+                  skinId={item.skinId || item.id}
                   camoColor={item.characterConfig?.camoColor || '#365314'}
                   headgear={item.characterConfig?.headgear || 'camo_helmet'}
                   bodyArmor={item.characterConfig?.bodyArmor || 'molle_vest'}

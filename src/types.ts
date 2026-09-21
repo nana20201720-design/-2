@@ -54,6 +54,7 @@ export interface SoldierProgression {
 }
 
 export interface PlayerCustomization {
+  skinId?: string; // e.g. 'pharaoh_suit' | 'tesla_suit' | 'ninja_suit' | 'joker_suit' | 'ghillie_suit' | 'woodland_camo'
   camoColor: string; // outfit color hex
   headgear: string; // 'helmet' | 'beret' | 'bandana' | 'cap' | 'pilot' | 'gasmask' | 'nvg' | 'ghillie' | 'ninja' | 'skull'
   bodyArmor?: string; // 'vest' | 'juggernaut' | 'harness' | 'cyber' | 'hazmat' | 'recon'
@@ -233,6 +234,10 @@ export interface CharacterState {
   landingFlexTimer?: number; // landing cushion knee flex timer
   prevGrounded?: boolean; // track airborne-to-ground transition
   isCrouching?: boolean;
+  isSliding?: boolean;
+  slideTimer?: number;
+  slideCooldown?: number;
+  slideDirection?: number;
   meleeTimer?: number;
   inBush?: boolean;
   isInCover?: boolean;
@@ -243,6 +248,7 @@ export interface CharacterState {
   maxHealth: number;
   fuel: number;
   maxFuel: number;
+  isFuelDepleted?: boolean; // track depleted jetpack state
   isDead: boolean;
   respawnTimer: number;
   timeSinceLastDamage?: number;
@@ -269,6 +275,7 @@ export interface CharacterState {
 
   // Visual & Animation
   walkCycle: number;
+  skinId?: string;
   camoColor: string;
   headgear: string;
   bodyArmor?: string;

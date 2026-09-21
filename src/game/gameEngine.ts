@@ -115,7 +115,8 @@ export class GameEngine {
     mode: GameMode,
     customization: PlayerCustomization,
     settings: GameSettings,
-    events: GameEngineEvents
+    events: GameEngineEvents,
+    customMap?: MapData
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: false })!;
@@ -127,11 +128,15 @@ export class GameEngine {
     this.particles = new ParticleSystem();
     this.botAI = new BotAIController(mode);
 
-    // Clone map data so state is fresh
-    this.map = JSON.parse(JSON.stringify(ARENA_MAP));
+    // Clone map data so state is fresh (use customMap if provided, fallback to ARENA_MAP)
+    this.map = JSON.parse(JSON.stringify(customMap || ARENA_MAP));
 
     // Setup exactly 4 players in Free-For-All (No bots!)
     this.setupFourPlayers(customization);
+  }
+
+  public get currentMap(): MapData {
+    return this.map;
   }
 
   public get player(): CharacterState {
@@ -387,6 +392,7 @@ export class GameEngine {
       multiKillCount: 0,
       lastKillTime: 0,
       walkCycle: 0,
+      skinId: customization?.skinId || (isPlayer ? (settingsManager.getSettings().equippedSkin || 'woodland_camo') : undefined),
       camoColor: customization?.camoColor || (isPlayer ? '#2d4a22' : '#1e3a8a'),
       headgear: customization?.headgear || (isPlayer ? 'camo_helmet' : 'helmet'),
       bodyArmor: customization?.bodyArmor || (isPlayer ? 'molle_vest' : 'molle_vest'),
@@ -776,6 +782,17 @@ export class GameEngine {
     }
     char.isReloading = false;
 
+    const weaponAmmo = char.ammo[currWeapon] ?? 0;
+    const weaponReserve = char.reserveAmmo[currWeapon] ?? 0;
+
+    // If inventory becomes empty, give basic backup pistol so character isn't defenseless
+    if (char.weapons.length === 0) {
+      char.weapons.push('pistol');
+      char.currentWeaponIndex = 0;
+      char.ammo['pistol'] = WEAPON_CONFIGS['pistol'].magazineSize;
+      char.reserveAmmo['pistol'] = WEAPON_CONFIGS['pistol'].magazineSize * 3;
+    }
+
     // Eject weapon as dropped pickup entity with arc physics & safety immunity
     const throwDir = char.facingRight ? 1 : -1;
     const dropX = char.x + (char.facingRight ? char.width + 10 : -30);
@@ -793,23 +810,27 @@ export class GameEngine {
       respawnTimer: 0,
       floatOffset: 0,
       isDropped: true,
-      pickupDelay: 2.5,
+      pickupDelay: 2.0,
       droppedBy: char.id,
-      ammo: char.ammo[currWeapon] ?? WEAPON_CONFIGS[currWeapon].magazineSize,
-      reserveAmmo: char.reserveAmmo[currWeapon] ?? WEAPON_CONFIGS[currWeapon].magazineSize * 2,
+      ammo: weaponAmmo,
+      reserveAmmo: weaponReserve,
       vx: throwDir * 240 + char.vx * 0.4,
       vy: -140 + char.vy * 0.2,
     };
 
     this.map.pickups.push(droppedPickup);
     soundManager.playPickup('weapon');
+    if (char.isPlayer) haptics.medium();
 
     if (char.isPlayer) {
+      const isDepleted = weaponAmmo <= 0 && weaponReserve <= 0;
       this.particles.addFloatingText(
         char.x + char.width / 2,
         char.y - 18,
-        `رمي: ${WEAPON_CONFIGS[currWeapon].nameAr} 🗑️`,
-        '#f59e0b'
+        isDepleted
+          ? `⚠️ نفدت الذخيرة! تم رمي ${WEAPON_CONFIGS[currWeapon].nameAr} 🗑️`
+          : `🗑️ رمي: ${WEAPON_CONFIGS[currWeapon].nameAr}`,
+        isDepleted ? '#ef4444' : '#f59e0b'
       );
     }
   }
@@ -887,18 +908,24 @@ export class GameEngine {
   private loop = (currentTime: number) => {
     if (!this.isRunning) return;
 
-    performanceOptimizer.reportFrameTime(currentTime);
-    const rawDt = (currentTime - this.lastTime) / 1000;
-    const dt = performanceOptimizer.clampDeltaTime(rawDt);
-    this.lastTime = currentTime;
+    try {
+      performanceOptimizer.reportFrameTime(currentTime);
+      const rawDt = (currentTime - this.lastTime) / 1000;
+      const dt = performanceOptimizer.clampDeltaTime(rawDt);
+      this.lastTime = currentTime;
 
-    if (!this.isPaused) {
-      this.update(dt);
+      if (!this.isPaused) {
+        this.update(dt);
+      }
+
+      this.render();
+    } catch (err) {
+      console.warn('Recovered from frame loop glitch:', err);
     }
 
-    this.render();
-
-    this.animFrameId = requestAnimationFrame(this.loop);
+    if (this.isRunning) {
+      this.animFrameId = requestAnimationFrame(this.loop);
+    }
   };
 
   private update(dt: number) {
@@ -1093,6 +1120,40 @@ export class GameEngine {
         const wantsCrouch = p.isGrounded && this.inputMoveY > 0.45;
         p.isCrouching = wantsCrouch;
 
+        // --- TACTICAL SLIDING ENGINE ---
+        if (p.slideTimer && p.slideTimer > 0) {
+          p.slideTimer -= dt;
+          if (p.slideTimer <= 0) {
+            p.isSliding = false;
+          }
+        }
+        if (p.slideCooldown && p.slideCooldown > 0) {
+          p.slideCooldown -= dt;
+        }
+
+        const isRunning = Math.abs(p.vx) > 120 || Math.abs(this.inputMoveX) > 0.35;
+        if (p.isGrounded && wantsCrouch && isRunning && !p.isSliding && !(p.slideCooldown && p.slideCooldown > 0)) {
+          p.isSliding = true;
+          p.slideTimer = 0.42;
+          p.slideCooldown = 1.0;
+          p.slideDirection = Math.sign(p.vx || this.inputMoveX || (p.facingRight ? 1 : -1));
+          p.vx = p.slideDirection * 480;
+          this.particles.addFloatingText(p.x + p.width / 2, p.y - 16, 'انزلاق! ⚡', '#38bdf8');
+          soundManager.playButtonClick();
+          haptics.light();
+        }
+
+        if (p.isSliding && p.slideTimer && p.slideTimer > 0) {
+          p.isCrouching = true;
+          p.vx = (p.slideDirection || 1) * 440 * (p.slideTimer / 0.42 * 0.4 + 0.6);
+          if (Math.random() < 0.45) {
+            this.particles.addLandingDust(p.x + p.width / 2, p.y + p.height);
+          }
+          if (Math.random() < 0.35) {
+            this.particles.addHitSparks(p.x + p.width / 2, p.y + p.height, 0, -1);
+          }
+        }
+
         // Mini Militia Omnidirectional Jetpack Flight & Smooth Transition Physics
         const isAirborne = !p.isGrounded;
         const stickPush = Math.hypot(this.inputMoveX, this.inputMoveY);
@@ -1103,8 +1164,17 @@ export class GameEngine {
         const jetEnduranceMult = p.skills ? 1.0 + (p.skills.jetpackEndurance - 1) * 0.15 : 1.0;
         const agilityMult = p.skills ? 1.0 + (p.skills.reloadAgility - 1) * 0.06 : 1.0;
 
+        // Handle Fuel Depletion Lock (Cannot fly if fuel was completely drained until it recovers to 30%)
+        if (p.fuel <= 1.0) {
+          p.isFuelDepleted = true;
+        } else if (p.isFuelDepleted && p.fuel >= 30.0) {
+          p.isFuelDepleted = false;
+        }
+
+        const canFly = wantsJetpack && !p.isFuelDepleted && p.fuel > 0;
+
         // --- 1. SMOOTH JETPACK POWER SPOOLING (0.0 to 1.0) ---
-        if (wantsJetpack && p.fuel > 0) {
+        if (canFly) {
           p.isJetpacking = true;
           p.jetpackPower = Math.min(1.0, (p.jetpackPower || 0) + dt * 9.0); // Spools up smoothly in ~0.11s
         } else {
@@ -1117,7 +1187,7 @@ export class GameEngine {
         if (jPower > 0.01) {
           // Fuel drain scales with actual thruster power
           if (p.isJetpacking) {
-            p.fuel = Math.max(0, p.fuel - (28 / jetEnduranceMult) * dt * jPower);
+            p.fuel = Math.max(0, p.fuel - (32 / jetEnduranceMult) * dt * jPower); // Heavier tactical consumption rate (32/sec)
           }
 
           // Upward lift - snappy momentum with counter-gravity
@@ -1146,21 +1216,33 @@ export class GameEngine {
           soundManager.stopJetpack();
 
           if (p.isGrounded) {
-            // Ground running with agility boost
-            const groundSpeed = (wantsCrouch ? 450 : 1200) * agilityMult;
-            if (Math.abs(this.inputMoveX) > 0.15) {
-              p.vx += this.inputMoveX * groundSpeed * dt;
-              p.walkCycle += dt * (wantsCrouch ? 8 : 16);
+            if (p.isSliding) {
+              // Sliding: recover fuel but don't apply run input velocity
+              p.fuel = Math.min(p.maxFuel, p.fuel + 48 * jetEnduranceMult * dt);
+            } else {
+              // Ground running with agility boost
+              const groundSpeed = (wantsCrouch ? 450 : 1200) * agilityMult;
+              if (Math.abs(this.inputMoveX) > 0.15) {
+                p.vx += this.inputMoveX * groundSpeed * dt;
+                p.walkCycle += dt * (wantsCrouch ? 8 : 16);
+                p.vx *= Math.pow(0.12, dt); // dynamic running friction
+              } else {
+                // Sudden Stop: Apply realistic progressive ground stopping friction (smooth deceleration slide)
+                p.vx *= Math.pow(0.005, dt);
+                if (Math.abs(p.vx) < 5) p.vx = 0;
+              }
+              p.fuel = Math.min(p.maxFuel, p.fuel + 48 * jetEnduranceMult * dt); // Rapid ground recovery (100% in ~2 seconds)
             }
-            p.vx *= 0.80; // ground friction
-            p.fuel = Math.min(p.maxFuel, p.fuel + 42 * jetEnduranceMult * dt);
           } else {
             // Air coasting / inertia glide
             if (Math.abs(this.inputMoveX) > 0.15) {
               p.vx += this.inputMoveX * 650 * jetSpeedMult * dt;
+              p.vx *= Math.pow(0.65, dt); // dynamic air friction
+            } else {
+              // Sudden Stop in Air: Apply realistic progressive air drift resistance
+              p.vx *= Math.pow(0.18, dt);
             }
-            p.vx *= 0.95;
-            p.fuel = Math.min(p.maxFuel, p.fuel + 16 * jetEnduranceMult * dt);
+            p.fuel = Math.min(p.maxFuel, p.fuel + 6 * jetEnduranceMult * dt); // 8x slower air recovery to enforce ground-contact tactics
           }
         }
 
@@ -1286,14 +1368,21 @@ export class GameEngine {
           p.landingFlexTimer = Math.max(0, p.landingFlexTimer - dt);
         }
 
+        // Fuel depletion lock for other characters / bots
+        if (p.fuel <= 1.0) {
+          p.isFuelDepleted = true;
+        } else if (p.isFuelDepleted && p.fuel >= 30.0) {
+          p.isFuelDepleted = false;
+        }
+
         // Fuel and ground friction
         if (p.isGrounded) {
-          p.vx *= 0.80; // Heavier friction on ground
-          p.fuel = Math.min(p.maxFuel, p.fuel + 38 * dt);
+          p.vx *= Math.pow(0.12, dt); // Heavier friction on ground
+          p.fuel = Math.min(p.maxFuel, p.fuel + 48 * dt);
         } else {
-          p.vx *= 0.96; // Less air drift
+          p.vx *= Math.pow(0.65, dt); // Less air drift
           if (!p.isJetpacking) {
-            p.fuel = Math.min(p.maxFuel, p.fuel + 15 * dt);
+            p.fuel = Math.min(p.maxFuel, p.fuel + 6 * dt);
           }
         }
       }
@@ -1505,8 +1594,14 @@ export class GameEngine {
     // Fire rate check
     if (now - char.lastShotTime < 1 / cfg.fireRate) return;
 
-    // Ammo check
+    // Ammo check: if current clip is empty
     if (char.ammo[currWeapon] <= 0) {
+      const reserve = char.reserveAmmo[currWeapon] ?? 0;
+      if (reserve <= 0) {
+        // Entirely empty (both clip and reserve depleted) -> auto drop weapon!
+        this.dropCharacterWeapon(char);
+        return;
+      }
       this.reloadCharacter(char);
       return;
     }
@@ -1568,6 +1663,16 @@ export class GameEngine {
         splashDamage: cfg.splashDamage,
       });
     }
+
+    // After shot: Check if clip and reserve are now both 0 -> auto drop!
+    if (char.ammo[currWeapon] <= 0) {
+      const remainingReserve = char.reserveAmmo[currWeapon] ?? 0;
+      if (remainingReserve <= 0) {
+        this.dropCharacterWeapon(char);
+      } else {
+        this.reloadCharacter(char);
+      }
+    }
   }
 
   private reloadCharacter(char: CharacterState) {
@@ -1577,7 +1682,13 @@ export class GameEngine {
     const cfg = WEAPON_CONFIGS[currWeapon];
 
     if (char.ammo[currWeapon] >= cfg.magazineSize) return; // Full already
-    if (char.reserveAmmo[currWeapon] <= 0) return; // No reserves
+    if ((char.reserveAmmo[currWeapon] ?? 0) <= 0) {
+      // If clip is also empty and no reserves, drop weapon!
+      if (char.ammo[currWeapon] <= 0) {
+        this.dropCharacterWeapon(char);
+      }
+      return;
+    }
 
     const reloadSpeedFactor = char.skills?.reloadAgility ? Math.max(0.6, 1.0 - (char.skills.reloadAgility - 1) * 0.08) : 1.0;
     const finalReloadDuration = cfg.reloadTime * reloadSpeedFactor;
@@ -1795,6 +1906,12 @@ export class GameEngine {
           if (p.weaponType === 'rocket' || p.weaponType === 'grenade') {
             this.detonateExplosive(p);
           } else {
+            // Apply tactile bullet physical knockback based on weapon type
+            const bulletAngle = Math.atan2(p.vy, p.vx);
+            const kbForce = p.weaponType === 'sniper' ? 360 : (p.weaponType === 'shotgun' ? 200 : (p.weaponType === 'rifle' ? 110 : 60));
+            char.vx += Math.cos(bulletAngle) * kbForce;
+            char.vy += Math.sin(bulletAngle) * kbForce * 0.6;
+
             this.applyDamage(char, dmg, p.ownerId, p.weaponType, isHeadshot);
           }
 
@@ -2426,43 +2543,18 @@ export class GameEngine {
 
   private render() {
     const otherPlayers = this.players.filter(p => p.id !== this.player.id);
-    const use3DCharacters = (settingsManager.getSettings().enable3DCharactersInBattle !== false) && !!this.threeRenderer && this.threeRenderer.areModelsLoaded;
-
-    if (use3DCharacters && this.threeRenderer) {
-      // 1. Draw beautiful 2D map, background, particles, bullets, and decals on 2D canvas (skip 2D characters)
-      this.renderer.render(
-        this.map,
-        this.player,
-        otherPlayers,
-        this.projectiles,
-        this.particles,
-        undefined,
-        this.scopeLevel,
-        true // Skip 2D characters so we don't double render them!
-      );
-
-      // 2. Overlay beautifully detailed 3D player models on top, matching the exact coordinates!
-      this.threeRenderer.render(
-        this.map,
-        this.player,
-        otherPlayers,
-        this.projectiles,
-        this.particles,
-        this.scopeLevel,
-        this.renderer
-      );
-    } else {
-      this.renderer.render(
-        this.map,
-        this.player,
-        otherPlayers,
-        this.projectiles,
-        this.particles,
-        undefined,
-        this.scopeLevel,
-        false
-      );
-    }
+    
+    // Pure authentic 2D Mini Militia character and world rendering
+    this.renderer.render(
+      this.map,
+      this.player,
+      otherPlayers,
+      this.projectiles,
+      this.particles,
+      undefined,
+      this.scopeLevel,
+      false // Always render full 2D characters!
+    );
   }
 
   // State Getters for HUD

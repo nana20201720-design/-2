@@ -367,6 +367,7 @@ export const ThreeMenuHangarWorld: React.FC = () => {
     });
     soldierRef.current = soldier;
     soldier.root.position.set(0, 0.1, 0);
+    soldier.root.visible = false; // Hide 3D soldier mannequin to preserve pure authentic 2D style
     soldierGroup.add(soldier.root);
     scene.add(soldierGroup);
 

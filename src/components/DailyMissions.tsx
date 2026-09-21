@@ -37,10 +37,14 @@ export const DailyMissions: React.FC<DailyMissionsProps> = ({ onRewardClaimed })
   }, []);
 
   const handleClaim = (mission: Mission) => {
-    if (!mission.isCompleted || mission.isClaimed) return;
+    if (!mission.isCompleted || mission.isClaimed) {
+      soundManager.playButtonClick();
+      return;
+    }
 
     soundManager.playVictory();
-    const { state, xpEarned } = missionsManager.claimReward(mission.id);
+    const { state, xpEarned, success } = missionsManager.claimReward(mission.id);
+    if (!success) return;
     
     // Earn coins too
     const coinsEarned = mission.rewardCoins || Math.floor(xpEarned * 0.3);
@@ -159,8 +163,8 @@ export const DailyMissions: React.FC<DailyMissionsProps> = ({ onRewardClaimed })
                     mission.isClaimed
                       ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-700/50'
                       : mission.isCompleted
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-neutral-950 shadow-lg shadow-emerald-500/20 animate-bounce'
-                      : 'bg-neutral-800/60 text-neutral-400 border border-neutral-700/40 cursor-not-allowed'
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-neutral-950 shadow-lg shadow-emerald-500/20 animate-bounce cursor-pointer font-black'
+                      : 'bg-neutral-900/80 text-neutral-500 border border-neutral-800 cursor-not-allowed'
                   }`}
                 >
                   {mission.isClaimed ? (
@@ -171,10 +175,10 @@ export const DailyMissions: React.FC<DailyMissionsProps> = ({ onRewardClaimed })
                   ) : mission.isCompleted ? (
                     <>
                       <Sparkles className="w-4 h-4 text-neutral-950" />
-                      <span>استلام (+{mission.rewardXP} XP / +{mission.rewardCoins || Math.floor(mission.rewardXP * 0.3)} 🪙) 🎁</span>
+                      <span>استلام الجائزة (+{mission.rewardXP} XP / +{mission.rewardCoins || Math.floor(mission.rewardXP * 0.3)} 🪙) 🎁</span>
                     </>
                   ) : (
-                    <span>جاري التقدم... ({mission.currentCount}/{mission.targetCount})</span>
+                    <span>🔒 مقفلة - يجب إتمام المهمة ({mission.currentCount}/{mission.targetCount})</span>
                   )}
                 </button>
               </div>

@@ -111,6 +111,19 @@ export default function StoreScreen() {
         unlockedWeapons: [...(latest.unlockedWeapons || []), item.id]
       };
 
+      if (item.category === 'character') {
+        updated.unlockedSkins = [...(latest.unlockedSkins || []), item.id];
+        updated.equippedSkin = item.id;
+        if (item.characterConfig) {
+          if (item.characterConfig.headgear) updated.equippedHeadgear = item.characterConfig.headgear;
+          if (item.characterConfig.bodyArmor) updated.equippedArmor = item.characterConfig.bodyArmor;
+          if (item.characterConfig.eyewear) updated.equippedEyewear = item.characterConfig.eyewear;
+          if (item.characterConfig.beard) updated.equippedBeard = item.characterConfig.beard;
+          if (item.characterConfig.jetpackStyle) updated.equippedJetpack = item.characterConfig.jetpackStyle;
+          if (item.characterConfig.trailColor) updated.equippedTrail = item.characterConfig.trailColor;
+        }
+      }
+
       if (item.priceGems) {
         updated.gems = Math.max(0, latest.gems - item.priceGems);
       }
@@ -122,9 +135,29 @@ export default function StoreScreen() {
       setPurchasingId(null);
       soundManager.playVictory();
       haptics.victory();
-      setToastMessage(`🎉 تمت العملية بنجاح! تم فتح [${item.name}] بنجاح.`);
+      setToastMessage(`🎉 تمت العملية بنجاح! تم فتح وتجهيز [${item.name}] بنجاح.`);
       setTimeout(() => setToastMessage(null), 3500);
     }, 1200);
+  };
+
+  const handleEquipCharacter = (char: PreviewableStoreItem) => {
+    soundManager.playSwitchWeapon();
+    haptics.medium();
+    const latest = settingsManager.getSettings();
+    const updated: Partial<typeof latest> = {
+      equippedSkin: char.id,
+    };
+    if (char.characterConfig) {
+      if (char.characterConfig.headgear) updated.equippedHeadgear = char.characterConfig.headgear;
+      if (char.characterConfig.bodyArmor) updated.equippedArmor = char.characterConfig.bodyArmor;
+      if (char.characterConfig.eyewear) updated.equippedEyewear = char.characterConfig.eyewear;
+      if (char.characterConfig.beard) updated.equippedBeard = char.characterConfig.beard;
+      if (char.characterConfig.jetpackStyle) updated.equippedJetpack = char.characterConfig.jetpackStyle;
+      if (char.characterConfig.trailColor) updated.equippedTrail = char.characterConfig.trailColor;
+    }
+    settingsManager.updateSettings(updated);
+    setToastMessage(`🎖️ تم تجهيز المحارب: [${char.name}] بنجاح!`);
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   const weaponsRef = useRef<HTMLDivElement>(null);
@@ -134,6 +167,106 @@ export default function StoreScreen() {
   const vipRef = useRef<HTMLDivElement>(null);
 
   const STORE_CHARACTERS: PreviewableStoreItem[] = [
+    {
+      id: 'pharaoh_suit',
+      name: 'بدلة الفرعون الملكية الخرافية • Pharaoh X-Suit',
+      nameEn: 'Royal Pharaoh God X-Suit',
+      rarity: 'legendary',
+      category: 'character',
+      priceGems: 350,
+      description: 'المظهر الفرعوني الأسطوري الأصلي بغطاء رأس النيميس الذهبي المخطط بالأزرق الملكي، وعقد الصدر الذهبي المجنح، وعيون التوربين المتوهجة.',
+      characterConfig: {
+        camoColor: '#eab308',
+        headgear: 'pharaoh_nemes',
+        bodyArmor: 'pharaoh_cuirass',
+        eyewear: 'none',
+        beard: 'stubble',
+        jetpackStyle: 'golden_thrusters',
+        skinTone: '#d97706',
+        weapon: 'laser',
+        trailColor: '#facc15',
+      },
+    },
+    {
+      id: 'tesla_suit',
+      name: 'درع تسلا السيبراني الخارق • Tesla Cyber-Armor',
+      nameEn: 'Tesla Arc-Reactor Exo Suit',
+      rarity: 'legendary',
+      category: 'character',
+      priceGems: 320,
+      description: 'درع كربوني مدرع مزود بمفاعل آرك نابض بالبلازما الزرقاء وخوذة سيبرانية مع ومضات كهربائية صاعقة.',
+      characterConfig: {
+        camoColor: '#0ea5e9',
+        headgear: 'tesla_helm',
+        bodyArmor: 'tesla_armor',
+        eyewear: 'none',
+        beard: 'clean',
+        jetpackStyle: 'cyber_plasma',
+        skinTone: '#fbb587',
+        weapon: 'plasma_rifle',
+        trailColor: '#06b6d4',
+      },
+    },
+    {
+      id: 'ninja_suit',
+      name: 'نينجا الظل للعمليات الليلية • Shadow Ninja',
+      nameEn: 'Shadow Ninja Shinobi Suit',
+      rarity: 'legendary',
+      category: 'character',
+      priceGems: 280,
+      description: 'زي الشينوبي الأسود القاتم الأصلي بأربطة الكاحل الحمراء وشوريكين الفضة اللامعة مع عيون حربية حمراء مرعبة.',
+      characterConfig: {
+        camoColor: '#09090b',
+        headgear: 'ninja_mask',
+        bodyArmor: 'ninja_gi',
+        eyewear: 'none',
+        beard: 'clean',
+        jetpackStyle: 'military_dual',
+        skinTone: '#fbb587',
+        weapon: 'katana',
+        trailColor: '#ef4444',
+      },
+    },
+    {
+      id: 'joker_suit',
+      name: 'المهرج الشرير المرعب • Sinister Joker',
+      nameEn: 'Sinister Joker Clown Suit',
+      rarity: 'epic',
+      category: 'character',
+      priceGems: 220,
+      description: 'بدلة المهرج الإجرامية ببدلة أرجوانية ملكية، وربطة عنق زمردية، وشعر أخضر فاقع مع ابتسامة أحمر الشفاه المرعبة.',
+      characterConfig: {
+        camoColor: '#701a75',
+        headgear: 'joker_hair',
+        bodyArmor: 'joker_vest',
+        eyewear: 'none',
+        beard: 'clean',
+        jetpackStyle: 'military_dual',
+        skinTone: '#f8fafc',
+        weapon: 'dual_uzi',
+        trailColor: '#a855f7',
+      },
+    },
+    {
+      id: 'ghillie_suit',
+      name: 'بدلة التمويه العشبي للغابات • Ghillie Suit',
+      nameEn: 'Tactical Ghillie Sniper Suit',
+      rarity: 'epic',
+      category: 'character',
+      priceGems: 180,
+      description: 'أوراق الشجر الكثيفة وأقمشة التمويه العسكرية المتطابقة مع ميني مالتي مليشيا الأصلية للتخفي المتقن بين الحشائش.',
+      characterConfig: {
+        camoColor: '#14532d',
+        headgear: 'ghillie_hood',
+        bodyArmor: 'ghillie_vest',
+        eyewear: 'none',
+        beard: 'stubble',
+        jetpackStyle: 'military_dual',
+        skinTone: '#fbb587',
+        weapon: 'sniper',
+        trailColor: '#22c55e',
+      },
+    },
     {
       id: 'cyber_commando',
       name: 'قائد النخبة السيبراني • Cyber Commando',
@@ -323,76 +456,332 @@ export default function StoreScreen() {
     soundManager.playVictory();
     haptics.heavy();
 
-    let payload: UnlockedItemPayload;
-    if (type === 'elite') {
-      payload = {
-        title: 'صندوق النخبة الذهبي الأسطوري!',
-        subtitle: 'تمت فك شيفرة الأقفال واستخراج عتاد وسلاح أسطوري',
-        type: 'crate',
-        rarity: 'legendary',
-        itemName: 'ديزرت إيجل الذهب الملكي • Desert Eagle Gold',
-        itemNameEn: 'Royal Golden .50 AE Pistol',
-        weaponId: 'desert_eagle_gold',
-        weaponType: 'pistol',
-        itemImage: '/images/desert_eagle_gold.jpg',
-        badge: 'LEGENDARY WEAPON 🌟',
-        statGains: [
-          { label: 'الضرر البالستي', newVal: '98 (+45%)' },
-          { label: 'سرعة التغذية', newVal: '85 RPM' },
-          { label: 'مدى الليزر', newVal: '75m' },
-          { label: 'سعة المخزن', newVal: '14 طلقة' },
-        ],
-        rewards: [
-          { label: 'عملات معركة', value: '+3,500 🪙', color: 'text-emerald-400' },
-          { label: 'جواهر نخبة', value: '+75 💎', color: 'text-cyan-400' },
-          { label: 'بطاقات سلاح', value: '+30 بطاقة AWM', color: 'text-amber-400' },
-          { label: 'ميزة نفاثة', value: 'وقود بلازمي مضاعف', color: 'text-purple-400' },
-        ],
-      };
-    } else if (type === 'mystery') {
-      payload = {
-        title: 'صندوق الأسلحة السري والغامض!',
-        subtitle: 'مستخرج من مخابئ الكتيبة الخاصة',
-        type: 'crate',
-        rarity: 'epic',
-        itemName: 'الرشاش المزدوج Dual Micro-Uzi',
-        itemNameEn: 'Dual Tactical Submachine Guns',
-        weaponId: 'dual_uzi',
-        weaponType: 'dual_uzi',
-        itemImage: '/images/dual_uzi.jpg',
-        badge: 'EPIC WEAPON 🔥',
-        statGains: [
-          { label: 'كثافة النيران', newVal: '98 RPM' },
-          { label: 'ضرر المواجهة', newVal: '75' },
-          { label: 'سعة المشط', newVal: '60 طلقة' },
-        ],
-        rewards: [
-          { label: 'عملات معركة', value: '+2,000 🪙', color: 'text-emerald-400' },
-          { label: 'جواهر نخبة', value: '+45 💎', color: 'text-cyan-400' },
-        ],
-      };
-    } else {
-      payload = {
-        title: 'صندوق الإمداد الميداني المجاني!',
-        subtitle: 'إمدادات تكتيكية يومية لمواصلة القتال',
-        type: 'crate',
-        rarity: 'rare',
-        itemName: 'قاذف الصواريخ RPG-7',
-        itemNameEn: 'Heavy Anti-Tank Rocket',
-        weaponId: 'rocket',
-        weaponType: 'rocket',
-        itemImage: '/images/crate_supply.jpg',
-        badge: 'SUPPLY CHEST 📦',
-        statGains: [
-          { label: 'ضرر الانفجار', newVal: '100 SP' },
-          { label: 'قطر التدمير', newVal: '160m' },
-        ],
-        rewards: [
-          { label: 'عملات معركة', value: '+1,200 🪙', color: 'text-emerald-400' },
-          { label: 'جواهر نخبة', value: '+20 💎', color: 'text-cyan-400' },
-        ],
-      };
+    interface DropItem {
+      id: string;
+      name: string;
+      nameEn: string;
+      type: 'weapon_skin' | 'character_skin' | 'headgear';
+      targetId?: string;
+      skinId: string;
+      rarity: 'rare' | 'epic' | 'legendary' | 'mythic';
+      badge: string;
+      rarityText: string;
+      icon: string;
+      perk: string;
     }
+
+    const POSSIBLE_DROPS: DropItem[] = [
+      // Character Suits
+      {
+        id: 'pharaoh_suit',
+        name: 'بدلة الفرعون الملكية الخرافية (Pharaoh X-Suit)',
+        nameEn: 'Royal Pharaoh X-Suit',
+        type: 'character_skin',
+        skinId: 'pharaoh_suit',
+        rarity: 'mythic',
+        badge: 'MYTHIC SUIT 👑',
+        rarityText: 'خرافي ★★★★★',
+        icon: '👑',
+        perk: 'مظهر الإله الذهبي الفرعوني بتأثيرات البلازما الغامضة'
+      },
+      {
+        id: 'tesla_suit',
+        name: 'درع تسلا السيبراني المستقبلي (Tesla Cyber-Armor)',
+        nameEn: 'Tesla Exo Cyber-Armor',
+        type: 'character_skin',
+        skinId: 'tesla_suit',
+        rarity: 'legendary',
+        badge: 'LEGENDARY SUIT ⚡',
+        rarityText: 'أسطوري ★★★★★',
+        icon: '🤖',
+        perk: 'درع معدني مشحون بومضات البرق والكهرباء الزرقاء'
+      },
+      {
+        id: 'ninja_suit',
+        name: 'بدلة نينجا العمليات الخاصة (Shadow Ninja)',
+        nameEn: 'Shadow Ninja Combat Suit',
+        type: 'character_skin',
+        skinId: 'ninja_suit',
+        rarity: 'legendary',
+        badge: 'LEGENDARY SUIT 🥷',
+        rarityText: 'أسطوري ★★★★★',
+        icon: '🥷',
+        perk: 'زي ممتص للضوء بالكامل للتسلل والاغتيال في العتمة'
+      },
+      {
+        id: 'joker_suit',
+        name: 'بدلة الجوكر المهرج المرعب (Sinister Joker)',
+        nameEn: 'Sinister Joker Clown Suit',
+        type: 'character_skin',
+        skinId: 'joker_suit',
+        rarity: 'epic',
+        badge: 'EPIC SUIT 🤡',
+        rarityText: 'ملحمي ★★★★',
+        icon: '🤡',
+        perk: 'هيبة مرعبة ومظهر ساخر يربك الأعداء في ساحة القتال'
+      },
+      {
+        id: 'ghillie_suit',
+        name: 'بدلة التمويه العشبي العسكري الكامل (Ghillie Suit)',
+        nameEn: 'Tactical Ghillie Suit',
+        type: 'character_skin',
+        skinId: 'ghillie_suit',
+        rarity: 'rare',
+        badge: 'RARE SUIT 🌿',
+        rarityText: 'نادر ★★★★',
+        icon: '🌿',
+        perk: 'التلاشي والتمويه العشبي المطلق للقناصة المحترفين'
+      },
+
+      // Headgears
+      {
+        id: 'cyber_samurai',
+        name: 'خوذة الساموراي السيبراني (Cyber Samurai)',
+        nameEn: 'Cyber Samurai Helm',
+        type: 'headgear',
+        skinId: 'cyber_samurai',
+        rarity: 'legendary',
+        badge: 'LEGENDARY HELMET 🏮',
+        rarityText: 'أسطوري ★★★★★',
+        icon: '🏮',
+        perk: 'خوذة المحاربين اليابانية القديمة بلمسة تكنولوجية متقدمة'
+      },
+      {
+        id: 'golden_crown',
+        name: 'التاج الملكي الذهبي المرصع (Golden Crown)',
+        nameEn: 'Royal Jeweled Crown',
+        type: 'headgear',
+        skinId: 'golden_crown',
+        rarity: 'mythic',
+        badge: 'MYTHIC CROWN 👑',
+        rarityText: 'خرافي ★★★★★',
+        icon: '👑',
+        perk: 'تاج ذهبي مهيب مرصع بأحجار البلازما والياقوت المتوهج'
+      },
+      {
+        id: 'captain_hat',
+        name: 'قبعة القائد العام الحربية (War Captain)',
+        nameEn: 'Military War Captain Hat',
+        type: 'headgear',
+        skinId: 'captain_hat',
+        rarity: 'epic',
+        badge: 'EPIC HAT 🫡',
+        rarityText: 'ملحمي ★★★★',
+        icon: '🫡',
+        perk: 'قبعة قائد الكتيبة التكتيكية برمز النسر الذهبي المذهب'
+      },
+      {
+        id: 'ninja_mask',
+        name: 'غطاء نينجا الظل العملياتي (Shadow Ninja Hood)',
+        nameEn: 'Shadow Ninja Combat Hood',
+        type: 'headgear',
+        skinId: 'ninja_mask',
+        rarity: 'epic',
+        badge: 'EPIC MASK 🥷',
+        rarityText: 'ملحمي ★★★★',
+        icon: '🥷',
+        perk: 'قناع كاتم للملامح مدمج مع فتحات تبريد ميكانيكية'
+      },
+
+      // Weapon Skins
+      {
+        id: 'glacier_rifle',
+        name: 'سكن بندقية الهجوم: الجليد (M416 Glacier)',
+        nameEn: 'M416 Glacier Skin',
+        type: 'weapon_skin',
+        targetId: 'rifle',
+        skinId: 'glacier',
+        rarity: 'mythic',
+        badge: 'MYTHIC WEAPON SKIN ❄️',
+        rarityText: 'خرافي ★★★★★',
+        icon: '❄️',
+        perk: 'جليد قطبي يلف هيكل البندقية مع مؤثرات تساقط البرد'
+      },
+      {
+        id: 'pharaoh_rifle',
+        name: 'سكن بندقية الهجوم: الفرعون (M416 Pharaoh)',
+        nameEn: 'M416 Pharaoh X-Suit Skin',
+        type: 'weapon_skin',
+        targetId: 'rifle',
+        skinId: 'pharaoh',
+        rarity: 'mythic',
+        badge: 'MYTHIC WEAPON SKIN 👑',
+        rarityText: 'خرافي ★★★★★',
+        icon: '👑',
+        perk: 'نقوش فرعونية ذهبية خالصة تحيط بهيكل البندقية الملكية'
+      },
+      {
+        id: 'cyberpunk_rifle',
+        name: 'سكن بندقية الهجوم: سايبربنك (M416 Cyberpunk)',
+        nameEn: 'M416 Cyberpunk Neon',
+        type: 'weapon_skin',
+        targetId: 'rifle',
+        skinId: 'cyberpunk',
+        rarity: 'legendary',
+        badge: 'LEGENDARY WEAPON SKIN ⚡',
+        rarityText: 'أسطوري ★★★★★',
+        icon: '⚡',
+        perk: 'درع معدني بنيون وردي فوشيا متوهج وصوت إطلاق معزز'
+      },
+      {
+        id: 'hellfire_rifle',
+        name: 'سكن بندقية الهجوم: جحيم النيران (M416 Hellfire)',
+        nameEn: 'M416 Hellfire Trigger',
+        type: 'weapon_skin',
+        targetId: 'rifle',
+        skinId: 'hellfire',
+        rarity: 'legendary',
+        badge: 'LEGENDARY WEAPON SKIN 🔥',
+        rarityText: 'أسطوري ★★★★★',
+        icon: '🔥',
+        perk: 'لهيب جحيم مندلع يترك أثراً حارقاً عند تصفية الخصوم'
+      },
+      {
+        id: 'neon_shotgun',
+        name: 'سكن بندقية الشوزن: نيون الموت (Shotgun Neon)',
+        nameEn: 'Shotgun Toxic Neon',
+        type: 'weapon_skin',
+        targetId: 'shotgun',
+        skinId: 'neon',
+        rarity: 'epic',
+        badge: 'EPIC WEAPON SKIN 💚',
+        rarityText: 'ملحمي ★★★★',
+        icon: '💚',
+        perk: 'إضاءة خضراء تكتيكية ساطعة تحفز معدل الإطلاق السريع'
+      },
+      {
+        id: 'inferno_shotgun',
+        name: 'سكن بندقية الشوزن: بركان الحمم (Shotgun Inferno)',
+        nameEn: 'Shotgun Magma Inferno',
+        type: 'weapon_skin',
+        targetId: 'shotgun',
+        skinId: 'inferno',
+        rarity: 'legendary',
+        badge: 'LEGENDARY WEAPON SKIN 🌋',
+        rarityText: 'أسطوري ★★★★★',
+        icon: '🌋',
+        perk: 'جزيئات حمم منصهرة تتطاير عند حشو وإطلاق الخرطوش'
+      },
+      {
+        id: 'gold_sniper',
+        name: 'سكن القناصة الثقيلة: الذهب الخالص (AWM Gold)',
+        nameEn: 'AWM Golden Sovereign',
+        type: 'weapon_skin',
+        targetId: 'sniper',
+        skinId: 'gold',
+        rarity: 'legendary',
+        badge: 'LEGENDARY WEAPON SKIN ✨',
+        rarityText: 'أسطوري ★★★★★',
+        icon: '✨',
+        perk: 'هيكل مذهب مصقول يعكس أشعة شمس المعركة لترهيب الخصوم'
+      },
+      {
+        id: 'obsidian_sniper',
+        name: 'سكن القناصة الثقيلة: زجاج الأوبسيديان (AWM Obsidian)',
+        nameEn: 'AWM Dark Obsidian',
+        type: 'weapon_skin',
+        targetId: 'sniper',
+        skinId: 'obsidian',
+        rarity: 'epic',
+        badge: 'EPIC WEAPON SKIN 🔮',
+        rarityText: 'ملحمي ★★★★',
+        icon: '🔮',
+        perk: 'مظهر زجاجي داكن متبلور يتميز برؤية تكتيكية معتمة فائقة'
+      }
+    ];
+
+    // Filter drops based on chest tier to reward the player correctly
+    const filteredDrops = POSSIBLE_DROPS.filter((item) => {
+      if (type === 'elite') return item.rarity === 'legendary' || item.rarity === 'mythic';
+      if (type === 'mystery') return item.rarity === 'epic' || item.rarity === 'legendary';
+      return item.rarity === 'rare' || item.rarity === 'epic';
+    });
+
+    const chosen = filteredDrops[Math.floor(Math.random() * filteredDrops.length)] || POSSIBLE_DROPS[0];
+
+    // Award bonus currency
+    let addedCoins = 1000;
+    let addedGems = 15;
+    let chestTitle = 'صندوق الإمداد الميداني المجاني!';
+    let chestSubtitle = 'إمدادات تكتيكية يومية لمواصلة القتال';
+
+    if (type === 'elite') {
+      addedCoins = 4000;
+      addedGems = 100;
+      chestTitle = 'صندوق النخبة الذهبي الأسطوري!';
+      chestSubtitle = 'تمت فك شيفرة الأقفال واستخراج عتاد وسلاح أسطوري خيالي';
+    } else if (type === 'mystery') {
+      addedCoins = 2000;
+      addedGems = 45;
+      chestTitle = 'صندوق الأسلحة السري والغامض!';
+      chestSubtitle = 'مستخرج من مخابئ الكتيبة الخاصة السرية للعمليات المتقدمة';
+    }
+
+    // Update settings in database/localStorage
+    const current = settingsManager.getSettings();
+    const updatedSkins = [...(current.unlockedSkins || [])];
+    const updatedHeadgears = [...(current.unlockedHeadgears || [])];
+    const weaponSkinsMap = { ...(current.weaponSkins || {}) };
+
+    if (chosen.type === 'character_skin') {
+      if (!updatedSkins.includes(chosen.skinId)) {
+        updatedSkins.push(chosen.skinId);
+      }
+    } else if (chosen.type === 'headgear') {
+      if (!updatedHeadgears.includes(chosen.skinId)) {
+        updatedHeadgears.push(chosen.skinId);
+      }
+    } else if (chosen.type === 'weapon_skin' && chosen.targetId) {
+      weaponSkinsMap[chosen.targetId] = chosen.skinId;
+    }
+
+    settingsManager.updateSettings({
+      coins: (current.coins || 0) + addedCoins,
+      gems: (current.gems || 0) + addedGems,
+      unlockedSkins: updatedSkins,
+      unlockedHeadgears: updatedHeadgears,
+      weaponSkins: weaponSkinsMap,
+      // Automatic equipping on win!
+      ...(chosen.type === 'character_skin' ? { equippedSkin: chosen.skinId } : {}),
+      ...(chosen.type === 'headgear' ? { equippedHeadgear: chosen.skinId } : {}),
+    });
+
+    // Stats configuration based on weapon/suit/headgear
+    const statGains = chosen.type === 'weapon_skin'
+      ? [
+          { label: 'الضرر البالستي', newVal: 'معزز بنظام ألوان تكتيكي' },
+          { label: 'دقة التوجيه', newVal: '+5% تركيز ليزري' },
+          { label: 'سرعة الإطلاق', newVal: 'ثبات فائق عند الضغط المتتالي' }
+        ]
+      : chosen.type === 'character_skin'
+      ? [
+          { label: 'وقود النفاثة', newVal: 'عادم بلازمي ديناميكي الهيكل' },
+          { label: 'سرعة التسلل', newVal: '+10% مرونة حركية' },
+          { label: 'مستوى الحماية', newVal: 'كثافة ألياف ممتصة للنبضات الكهرومغناطيسية' }
+        ]
+      : [
+          { label: 'حماية الرأس', newVal: 'مصفح بالكامل ضد الشظايا' },
+          { label: 'رؤية تكتيكية', newVal: 'مدى استكشاف محسّن' }
+        ];
+
+    let payload: UnlockedItemPayload = {
+      title: chestTitle,
+      subtitle: chestSubtitle,
+      type: 'crate',
+      rarity: chosen.rarity === 'mythic' ? 'legendary' : chosen.rarity,
+      itemName: chosen.name,
+      itemNameEn: chosen.nameEn,
+      weaponId: chosen.id,
+      weaponType: chosen.targetId as any,
+      itemImage: '/images/crate_supply.jpg', // Default image placeholder
+      badge: chosen.badge,
+      statGains: statGains,
+      rewards: [
+        { label: 'عملات معركة مكافأة', value: `+${addedCoins.toLocaleString()} 🪙`, color: 'text-emerald-400' },
+        { label: 'جواهر نخبة مكافأة', value: `+${addedGems} 💎`, color: 'text-cyan-400' },
+        { label: 'ميزة تكتيكية مضافة', value: chosen.perk, color: 'text-amber-400' }
+      ]
+    };
 
     setCutscenePayload(payload);
     setShowCutsceneModal(true);
@@ -625,7 +1014,8 @@ export default function StoreScreen() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {STORE_CHARACTERS.map((char) => {
-            const isOwned = unlockedWeapons.includes(char.id);
+            const isOwned = unlockedWeapons.includes(char.id) || (settingsManager.getSettings().unlockedSkins || []).includes(char.id);
+            const isEquipped = settingsManager.getSettings().equippedSkin === char.id;
             const isPurchasing = purchasingId === char.id;
 
             return (
@@ -673,7 +1063,7 @@ export default function StoreScreen() {
                     className="px-2 py-0.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all"
                   >
                     <Eye size={12} className="text-cyan-300" />
-                    <span>معاينة 3D</span>
+                    <span>معاينة 2D أصلية</span>
                   </button>
                 </div>
 
@@ -698,7 +1088,7 @@ export default function StoreScreen() {
                   
                   {/* Large Stylized Monogram overlay in background */}
                   <span className="absolute text-[60px] font-black text-white/5 tracking-wider uppercase select-none pointer-events-none leading-none">
-                    {char.id === 'cyber_commando' ? 'CYBER' : char.id === 'golden_warlord' ? 'GOLD' : char.id === 'desert_phantom' ? 'SHD' : 'ICE'}
+                    {char.id.slice(0, 5).toUpperCase()}
                   </span>
 
                   {/* High Detail Realistic 2D Operative Character Graphic */}
@@ -710,7 +1100,7 @@ export default function StoreScreen() {
                   <div className="absolute bottom-2 inset-x-0 text-center z-10">
                     <span className="text-[9px] font-black tracking-wider text-cyan-400 font-mono bg-cyan-950/80 border border-cyan-500/30 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 uppercase">
                       <Eye size={10} className="text-cyan-400 animate-pulse" />
-                      <span>معاينة 3D تفاعلية 🔍</span>
+                      <span>معاينة 2D أصلية 🔍</span>
                     </span>
                   </div>
                 </div>
@@ -723,11 +1113,19 @@ export default function StoreScreen() {
                 <div className="flex items-center gap-2 pt-2 border-t border-white/10 mt-1">
                   <motion.button
                     whileTap={{ scale: 0.95 }}
-                    disabled={isOwned || isPurchasing}
-                    onClick={() => handlePurchase(char)}
+                    disabled={isPurchasing || isEquipped}
+                    onClick={() => {
+                      if (isOwned) {
+                        handleEquipCharacter(char);
+                      } else {
+                        handlePurchase(char);
+                      }
+                    }}
                     className={`w-full py-2 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow cursor-pointer transition-all ${
-                      isOwned
-                        ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/50 cursor-not-allowed'
+                      isEquipped
+                        ? 'bg-emerald-600/30 text-emerald-400 border border-emerald-500/60 cursor-default'
+                        : isOwned
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 cursor-pointer'
                         : isPurchasing
                         ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50 cursor-wait animate-pulse'
                         : 'bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-500 hover:brightness-110 text-black'
@@ -738,10 +1136,15 @@ export default function StoreScreen() {
                         <RotateCw size={13} className="animate-spin text-amber-400" />
                         <span>جاري المعالجة...</span>
                       </>
-                    ) : isOwned ? (
+                    ) : isEquipped ? (
                       <>
                         <CheckCircle2 size={13} className="text-emerald-400" />
-                        <span>مملوك (Owned)</span>
+                        <span>مجهز حالياً ✓</span>
+                      </>
+                    ) : isOwned ? (
+                      <>
+                        <Check size={13} className="text-cyan-400" />
+                        <span>تجهيز المقاتل (Equip)</span>
                       </>
                     ) : (
                       <>

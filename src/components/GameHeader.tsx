@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useSyncExternalStore } from 'react';
 import { Volume2, VolumeX, Bell, Settings as SettingsIcon, Shield, Zap, Wifi } from 'lucide-react';
 import { settingsManager, TacticalSettings } from '../utils/settingsManager';
 import { soundManager } from '../audio/soundManager';
@@ -13,16 +13,12 @@ interface GameHeaderProps {
 }
 
 export const GameHeader: React.FC<GameHeaderProps> = ({ onOpenSettings, onOpenAuth, currentUser, title }) => {
-  const [settings, setSettings] = useState<TacticalSettings>(() => settingsManager.getSettings());
+  const settings = useSyncExternalStore(
+    (callback) => settingsManager.subscribe(callback),
+    () => settingsManager.getSettings()
+  );
   const [ping, setPing] = useState(24);
   const [pingStatus, setPingStatus] = useState<'stable' | 'moderate' | 'unstable'>('stable');
-
-  useEffect(() => {
-    const unsub = settingsManager.subscribe((newSettings) => {
-      setSettings(newSettings);
-    });
-    return unsub;
-  }, []);
 
   // Simulating live network server latency ping
   useEffect(() => {

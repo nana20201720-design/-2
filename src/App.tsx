@@ -9,10 +9,11 @@ import LobbyScreen from './components/LobbyScreen';
 import ArmoryScreen from './components/ArmoryScreen';
 import { GameHeader } from './components/GameHeader';
 import { SettingsModal } from './components/SettingsModal';
-import { DailyLoginModal } from './components/DailyLoginModal';
+import { DailyLoginModal, isWeeklyChestReady } from './components/DailyLoginModal';
 import { LevelUpModal } from './components/LevelUpModal';
 import { AuthModal } from './components/AuthModal';
 import { ToastContainer } from './components/ToastContainer';
+import { InviteNotificationBanner } from './components/InviteNotificationBanner';
 import { ThreeMenuHangarWorld } from './components/ThreeMenuHangarWorld';
 import { soundManager } from './audio/soundManager';
 import { settingsManager } from './utils/settingsManager';
@@ -44,7 +45,7 @@ function PageTransition({ children }: { children: React.ReactNode }) {
 function AppContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [isDailyOpen, setIsDailyOpen] = useState(true);
+  const [isDailyOpen, setIsDailyOpen] = useState(() => isWeeklyChestReady());
   const [isCinematicMode, setIsCinematicMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [levelUpData, setLevelUpData] = useState<{
@@ -219,6 +220,14 @@ function AppContent() {
 
       {/* Global Toast Notifications */}
       <ToastContainer />
+
+      {/* Global Real-time Room Invite Notifications */}
+      <InviteNotificationBanner
+        currentUser={currentUser}
+        onAcceptJoinRoom={(roomCode) => {
+          window.location.href = '/lobby';
+        }}
+      />
 
       {/* Persistent Authentic Header with Coins, Rank, Logo, and Settings button */}
       <div className={`transition-opacity duration-300 ${isCinematicMode ? 'opacity-20 hover:opacity-100 pointer-events-auto' : 'opacity-100'}`}>

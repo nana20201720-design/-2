@@ -56,7 +56,7 @@ interface HUDProps {
   onOpenTacticalWheel?: () => void;
 }
 
-export const HUD: React.FC<HUDProps> = ({
+export const HUD: React.FC<HUDProps> = React.memo(({
   player,
   scopeLevel = 1,
   onToggleScope,
@@ -126,8 +126,40 @@ export const HUD: React.FC<HUDProps> = ({
   // --- KILLING SPREE ALERTS ---
   const [spreeAlert, setSpreeAlert] = React.useState<{weapon: WeaponType, count: number, id: number} | null>(null);
 
+  // --- WEAPON SWITCH & PICKUP ANIMATION STATE ---
+  const [switchAlert, setSwitchAlert] = React.useState<{
+    weapon: WeaponType;
+    isPickup: boolean;
+    id: number;
+  } | null>(null);
+  const prevWeaponRef = React.useRef<WeaponType | null>(null);
+
   // المتغيرات المشتقة من اللاعب
   const currWeapon = player?.weapons[player?.currentWeaponIndex] || 'pistol';
+
+  React.useEffect(() => {
+    if (!player) return;
+    const currentWep = player.weapons[player.currentWeaponIndex] || 'pistol';
+    
+    if (prevWeaponRef.current && prevWeaponRef.current !== currentWep) {
+      const isPickup = player.weapons.includes(currentWep) && prevWeaponRef.current !== currentWep;
+      setSwitchAlert({
+        weapon: currentWep,
+        isPickup: isPickup,
+        id: Date.now(),
+      });
+    }
+    prevWeaponRef.current = currentWep;
+  }, [player?.currentWeaponIndex, player?.weapons]);
+
+  React.useEffect(() => {
+    if (switchAlert) {
+      const timer = setTimeout(() => {
+        setSwitchAlert(null);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [switchAlert?.id]);
 
   React.useEffect(() => {
     if (player && player.killStreak > 2 && player.killStreak % 3 === 0) {
@@ -330,8 +362,25 @@ export const HUD: React.FC<HUDProps> = ({
           </button>
         </div>
 
-        {/* TOP RIGHT: Metallic Trapezoid Weapon HUD & Grenade Icon (Exact match with screenshot) */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        {/* TOP RIGHT: Metallic Trapezoid Weapon HUD, Drop Button & Grenade Icon (Exact match with screenshot) */}
+        <div className="flex items-center gap-1.5 pointer-events-auto">
+          {/* Drop Weapon Button (زر رمي السلاح 🗑️) */}
+          <button
+            id="btn-hud-drop-weapon"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDropWeapon?.();
+            }}
+            className="h-8 px-2.5 rounded-lg bg-neutral-300/90 hover:bg-red-500 hover:text-white border-2 border-neutral-500 text-neutral-900 shadow-md flex items-center gap-1 cursor-pointer transition-all active:scale-90 transform -skew-x-12 group"
+            title="رمي السلاح الحالي (Z / G)"
+          >
+            <div className="transform skew-x-12 flex items-center gap-1">
+              <ArrowDownToLine size={13} className="text-red-600 group-hover:text-white transition-colors" />
+              <span className="text-[10px] font-black font-sans leading-none">رمي</span>
+              <span className="text-[8px] font-mono opacity-60 bg-black/10 group-hover:bg-white/20 px-1 rounded">[Z]</span>
+            </div>
+          </button>
+
           <div
             onClick={onSwitchWeapon}
             className="bg-neutral-300/90 border-2 border-neutral-500 px-3 py-1 shadow-md flex items-center gap-3 cursor-pointer transform -skew-x-12 rounded-lg hover:scale-105 active:scale-95 transition-all"
@@ -367,6 +416,100 @@ export const HUD: React.FC<HUDProps> = ({
 
     {/* BOTTOM LEFT: WEAPON CARD & AMMO */}
       <div className="flex flex-col items-start gap-1.5 pointer-events-auto">
+        {/* Holographic Weapon Switch & Pickup Banner */}
+        <AnimatePresence>
+          {switchAlert && (
+            <motion.div
+              key={switchAlert.id}
+              initial={{ opacity: 0, x: -50, scale: 0.85, y: 15 }}
+              animate={{ opacity: 1, x: 0, scale: 1, y: 0 }}
+              exit={{ opacity: 0, x: 50, scale: 0.9, y: -10 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 21 }}
+              className="bg-neutral-950/95 border-2 border-cyan-400/80 rounded-2xl p-3.5 flex flex-col gap-2 shadow-[0_0_25px_rgba(34,211,238,0.25)] min-w-[210px] max-w-[250px] backdrop-blur-lg mb-1"
+            >
+              <div className="flex items-center justify-between border-b border-cyan-500/20 pb-1.5">
+                <span className="text-cyan-400 font-sans text-[10px] font-black uppercase tracking-wider animate-pulse flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                  {switchAlert.isPickup ? 'تم التقاط سلاح جديد' : 'تم سحب السلاح'}
+                </span>
+                <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-400/30 text-[8px] font-mono px-1.5 py-0.5 rounded-md">
+                  {switchAlert.isPickup ? 'PICKUP' : 'EQUIPPED'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="relative w-11 h-11 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-center shrink-0 overflow-hidden">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#06b6d4_0%,transparent_70%)] opacity-20" />
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
+                    className="absolute inset-0 border border-dashed border-cyan-400/10 rounded-full scale-90"
+                  />
+                  <div className="w-8 h-8 flex items-center justify-center relative z-10 text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]">
+                    {renderWeaponIcon(switchAlert.weapon, "w-8 h-6")}
+                  </div>
+                </div>
+
+                <div className="flex flex-col">
+                  <span className="text-white font-black text-xs">
+                    {WEAPON_CONFIGS[switchAlert.weapon]?.nameAr}
+                  </span>
+                  <span className="text-neutral-400 font-mono text-[9px]">
+                    {WEAPON_CONFIGS[switchAlert.weapon]?.name}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 text-[8px] font-sans text-neutral-300 border-t border-cyan-500/10 pt-2">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="text-neutral-400 w-9 text-right font-medium">الضـرر:</span>
+                  <div className="flex-1 bg-neutral-800 rounded-full h-1 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, (WEAPON_CONFIGS[switchAlert.weapon]?.damage / 85) * 100)}%` }}
+                      transition={{ duration: 0.6, ease: 'easeOut' }}
+                      className="bg-cyan-400 h-full rounded-full"
+                    />
+                  </div>
+                  <span className="font-mono text-cyan-300 text-[8px] w-4 text-left">
+                    {WEAPON_CONFIGS[switchAlert.weapon]?.damage}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="text-neutral-400 w-9 text-right font-medium">السرعة:</span>
+                  <div className="flex-1 bg-neutral-800 rounded-full h-1 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, (WEAPON_CONFIGS[switchAlert.weapon]?.fireRate / 10) * 100)}%` }}
+                      transition={{ duration: 0.6, ease: 'easeOut' }}
+                      className="bg-emerald-400 h-full rounded-full"
+                    />
+                  </div>
+                  <span className="font-mono text-emerald-300 text-[8px] w-4 text-left">
+                    {Math.round(WEAPON_CONFIGS[switchAlert.weapon]?.fireRate * 10)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="text-neutral-400 w-9 text-right font-medium">المدى:</span>
+                  <div className="flex-1 bg-neutral-800 rounded-full h-1 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, (WEAPON_CONFIGS[switchAlert.weapon]?.range / 4500) * 100)}%` }}
+                      transition={{ duration: 0.6, ease: 'easeOut' }}
+                      className="bg-amber-400 h-full rounded-full"
+                    />
+                  </div>
+                  <span className="font-mono text-amber-300 text-[8px] w-4 text-left">
+                    {Math.round(WEAPON_CONFIGS[switchAlert.weapon]?.range / 10)}
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Nearby Ground Weapon Swap Notification Badge (when carrying 2 weapons) */}
         {nearbyWeapon && player.weapons.length >= 2 && onSwapWeapon && (
           <button
@@ -385,100 +528,9 @@ export const HUD: React.FC<HUDProps> = ({
           </button>
         )}
 
-        <div className="flex items-end gap-2.5">
-          {/* Active Weapon Card (Compact & Exact match with screenshot style) */}
-          <motion.div
-            key={`active-weapon-box-${currWeapon}`}
-            initial={{ scale: 0.94, y: 4, opacity: 0.8 }}
-            animate={{ scale: 1, y: 0, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 350, damping: 22 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onReload();
-            }}
-            className={`backdrop-blur-md border-2 rounded-xl p-2 shadow-xl flex items-center gap-2.5 cursor-pointer select-none transition-all ${
-              player.isReloading 
-                ? 'bg-neutral-900/95 border-amber-500/80 ring-2 ring-amber-500/20' 
-                : 'bg-neutral-900/90 border-neutral-700 hover:border-amber-400/60 active:scale-98'
-            }`}
-          >
-            {/* Animated Weapon Icon */}
-            <div className="relative w-10 h-10 rounded-lg bg-neutral-950 border border-neutral-800 flex items-center justify-center shrink-0 overflow-hidden">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`weapon-svg-${currWeapon}`}
-                  initial={{ rotate: -10, scale: 0.7, opacity: 0 }}
-                  animate={{ rotate: 0, scale: 1, opacity: 1 }}
-                  exit={{ rotate: 10, scale: 0.7, opacity: 0 }}
-                  transition={{ duration: 0.22, ease: "easeOut" }}
-                  className="w-full h-full flex items-center justify-center"
-                >
-                  {renderWeaponIcon(currWeapon)}
-                </motion.div>
-              </AnimatePresence>
-
-              {/* Reload overlay spinning icon */}
-              {player.isReloading && (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center"
-                >
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}
-                  >
-                    <RefreshCw className="w-4 h-4 text-amber-400" />
-                  </motion.div>
-                </motion.div>
-              )}
-            </div>
-
-            {/* Ammo & Status */}
-            <div className="flex flex-col min-w-[60px]">
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[11px] font-bold text-neutral-200">
-                  {currCfg.nameAr}
-                </span>
-                {player.isReloading && (
-                  <span className="text-[8px] font-black text-amber-400 animate-pulse font-mono">
-                    تلقيم...
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-baseline gap-1 mt-0.5">
-                <span className={`text-lg font-black font-mono transition-colors ${
-                  player.isReloading 
-                    ? 'text-amber-500/70' 
-                    : currentAmmo <= 3 
-                      ? 'text-rose-500 animate-pulse' 
-                      : 'text-amber-400'
-                }`}>
-                  {currentAmmo}
-                </span>
-                <span className="text-[11px] font-semibold text-neutral-400 font-mono">
-                  / {reserveAmmo}
-                </span>
-              </div>
-            </div>
-
-            {/* Scope / Reticle Toggle Button (Exact match with screenshot) */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleScope();
-              }}
-              className="w-9 h-9 rounded-full bg-neutral-950/90 border-2 border-rose-500/80 text-rose-400 flex items-center justify-center shadow-lg active:scale-90 hover:bg-neutral-900 cursor-pointer transition-all ml-1 relative overflow-hidden group"
-              title={`تغيير المنظور (${scopeLevel}x)`}
-            >
-              <div className="absolute inset-0 bg-rose-500/10 group-hover:bg-rose-500/25 transition-all" />
-              <span className="text-[10px] font-black relative z-10 font-mono">{scopeLevel}x</span>
-            </button>
-          </motion.div>
-
-          {/* Secondary Weapon Quick Swap Slot */}
-          {nextWeapon ? (
+        {/* Secondary Weapon Quick Swap Slot & Drop Weapon */}
+        <div className="flex items-center gap-2">
+          {nextWeapon && (
             <motion.button
               key={`secondary-weapon-btn-${nextWeapon}`}
               initial={{ scale: 0.9, opacity: 0.8 }}
@@ -489,24 +541,30 @@ export const HUD: React.FC<HUDProps> = ({
                 e.stopPropagation();
                 onSwitchWeapon();
               }}
-              className="bg-neutral-900/80 backdrop-blur-md border border-neutral-700 hover:border-sky-400 rounded-xl p-2 flex flex-col items-center justify-center gap-0.5 shadow-lg active:scale-90 cursor-pointer transition-all group"
-              title="تبديل السلاح (Q / E / Scroll / Click)"
+              className="bg-neutral-900/90 backdrop-blur-md border border-neutral-600 hover:border-amber-400 rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-lg active:scale-90 cursor-pointer transition-all pointer-events-auto"
+              title="تبديل السلاح الثانوي (Q)"
             >
-              <div className="w-8 h-8 rounded-lg bg-neutral-950 flex items-center justify-center group-hover:bg-neutral-900 transition-colors">
-                <WeaponSpriteSVG weapon={nextWeapon} className="w-7 h-5 text-neutral-300 group-hover:text-white transition-colors" />
+              <div className="w-7 h-6 rounded-lg bg-neutral-950 flex items-center justify-center">
+                <WeaponSpriteSVG weapon={nextWeapon} className="w-6 h-4 text-neutral-200" />
               </div>
-              <span className="text-[8px] font-bold text-neutral-400 group-hover:text-sky-300 transition-colors">تبديل [Q]</span>
+              <span className="text-[10px] font-bold text-amber-300 whitespace-nowrap">تبديل [Q]</span>
             </motion.button>
-          ) : (
-            <div
-              className="bg-neutral-900/40 backdrop-blur-xs border border-dashed border-neutral-700/80 rounded-xl px-2 py-1.5 flex flex-col items-center justify-center gap-0.5"
-              title="ابحث في الخريطة عن سلاح ثانوي"
+          )}
+
+          {/* Quick Drop Weapon Button */}
+          {onDropWeapon && (
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDropWeapon();
+              }}
+              className="bg-neutral-900/90 backdrop-blur-md border border-neutral-600 hover:border-red-400 hover:bg-red-950/50 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 shadow-lg active:scale-90 cursor-pointer transition-all pointer-events-auto text-red-300"
+              title="رمي السلاح الحالي (Z)"
             >
-              <div className="w-7 h-7 rounded-lg bg-neutral-950/40 border border-dashed border-neutral-700 flex items-center justify-center text-neutral-500">
-                <Plus className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[7px] font-bold text-neutral-400 whitespace-nowrap">سلاح ٢ فارغ</span>
-            </div>
+              <ArrowDownToLine className="w-3.5 h-3.5 text-red-400" />
+              <span className="text-[10px] font-bold whitespace-nowrap">رمي السلاح [Z]</span>
+            </motion.button>
           )}
 
           {/* Frag Grenades Indicator */}
@@ -652,4 +710,4 @@ export const HUD: React.FC<HUDProps> = ({
       </AnimatePresence>
     </div>
   );
-};
+});

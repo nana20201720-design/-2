@@ -85,7 +85,7 @@ export default defineConfig(() => {
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
     build: {
-      outDir: path.resolve(__dirname, 'dist'),
+      outDir: 'dist',
       emptyOutDir: true,
       chunkSizeWarningLimit: 5000,
       rollupOptions: {

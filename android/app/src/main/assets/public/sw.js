@@ -67,23 +67,16 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-f0c192c2'], (function (workbox) { 'use strict';
+define(['./workbox-25613826'], (function (workbox) { 'use strict';
 
-  self.addEventListener('message', event => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
-      self.skipWaiting();
-    }
-  });
-
+  self.skipWaiting();
+  workbox.clientsClaim();
   /**
    * The precacheAndRoute() method efficiently caches and responds to
    * requests for URLs in the manifest.
    * See https://goo.gl/S9QRab
    */
   workbox.precacheAndRoute([{
-    "url": "registerSW.js",
-    "revision": "1872c500de691dce40960bb85481de07"
-  }, {
     "url": "pwa-icon-512.png",
     "revision": "8ce4fed6713a41d15c83d9f9bbc66be8"
   }, {
@@ -93,11 +86,17 @@ define(['./workbox-f0c192c2'], (function (workbox) { 'use strict';
     "url": "pwa-512x512.png",
     "revision": "eb7daed37934ec94ffc4c82d5ec64eef"
   }, {
+    "url": "pwa-512.png",
+    "revision": "09d2eeb0ba95b2979527d47f7fc43060"
+  }, {
     "url": "pwa-192x192.png",
     "revision": "398ffab5a65d0c9bab8353c38a85cbb0"
   }, {
+    "url": "pwa-192.png",
+    "revision": "09d2eeb0ba95b2979527d47f7fc43060"
+  }, {
     "url": "index.html",
-    "revision": "c7e73a8903f8c5eec55b880673ec1113"
+    "revision": "a69d7557570684851058da118aa58a8c"
   }, {
     "url": "icon.svg",
     "revision": "b472933d64ba1d69f268571d3387f675"
@@ -105,13 +104,67 @@ define(['./workbox-f0c192c2'], (function (workbox) { 'use strict';
     "url": "apple-touch-icon.png",
     "revision": "11720f06648ba807017ca0da4a9e6687"
   }, {
-    "url": "assets/index-NTFVYN3A.css",
+    "url": "images/warriors_lineup.jpg",
+    "revision": "203830fefd6584741ad6e77823ffba7f"
+  }, {
+    "url": "images/splash_background.jpg",
+    "revision": "9c3769e5f6be819040fd7d3868e83c81"
+  }, {
+    "url": "images/reward_crate_burst.jpg",
+    "revision": "c28691d098250ef4c3eb8e7d0ab15c0f"
+  }, {
+    "url": "images/dual_uzi.jpg",
+    "revision": "11dc16c60efa44a739432cba56489987"
+  }, {
+    "url": "images/desert_eagle_gold.jpg",
+    "revision": "0581409155b8c913e4d4f0f4c1cb2b3b"
+  }, {
+    "url": "images/crate_supply.jpg",
+    "revision": "e3d0c7e672a13fd3e69f802ac6c3478e"
+  }, {
+    "url": "images/crate_mystery.jpg",
+    "revision": "1de814271245773db2f3b2ea6f132b14"
+  }, {
+    "url": "images/crate_elite.jpg",
+    "revision": "8fbff32b3601f3390b9d2c94de1a1b35"
+  }, {
+    "url": "images/commando_avatar.jpg",
+    "revision": "33d9dede2ca96e8561b717dcd059769b"
+  }, {
+    "url": "images/character_customization.jpg",
+    "revision": "2ca5e088c13177430bda094ecaf825b2"
+  }, {
+    "url": "images/arsenal_grid.jpg",
+    "revision": "8553cfce47c6f045da5f295dac76e9ed"
+  }, {
+    "url": "images/app_logo.jpg",
+    "revision": "625f443f0b58d35411d081bb79e61f73"
+  }, {
+    "url": "images/active_combat.jpg",
+    "revision": "46b081c9e3243bef9b696f6355276efc"
+  }, {
+    "url": "assets/workbox-window.prod.es5-BBnX5xw4.js",
     "revision": null
   }, {
-    "url": "assets/index-BziYQjP-.js",
+    "url": "assets/vendor-CCNoe7vs.js",
     "revision": null
   }, {
-    "url": "assets/GLTFLoader-BKTrmjvO.js",
+    "url": "assets/threeVendor-BmL3gDzS.js",
+    "revision": null
+  }, {
+    "url": "assets/realistic_commando_1789736030533-aQdXZIq8.jpg",
+    "revision": null
+  }, {
+    "url": "assets/military_arena_bg_1789831118619-DQm0e9a4.jpg",
+    "revision": null
+  }, {
+    "url": "assets/index-edv1VNh-.css",
+    "revision": null
+  }, {
+    "url": "assets/index-BTh6IPhQ.js",
+    "revision": null
+  }, {
+    "url": "assets/GLTFLoader-BAWbxQrV.js",
     "revision": null
   }, {
     "url": "apple-touch-icon.png",
@@ -131,5 +184,12 @@ define(['./workbox-f0c192c2'], (function (workbox) { 'use strict';
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html")));
+  workbox.registerRoute(/^https:\/\/fonts\.googleapis\.com\/.*/i, new workbox.CacheFirst({
+    "cacheName": "google-fonts-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 10,
+      maxAgeSeconds: 31536000
+    })]
+  }), 'GET');
 
 }));

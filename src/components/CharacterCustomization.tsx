@@ -114,6 +114,36 @@ const HEADGEARS: EquipmentOption[] = [
     unlocked: true,
   },
   {
+    id: 'cyber_samurai',
+    name: 'خوذة الساموراي السيبرانية المضيئة',
+    nameEn: 'Cyber Samurai Horned Helmet',
+    rarity: 'خرافي ★★★★★',
+    rarityColor: 'text-rose-400 border-rose-500',
+    perk: '+20% حماية من ضربات الرأس واندفاع نيون خاطف',
+    icon: '👺',
+    unlocked: true,
+  },
+  {
+    id: 'golden_crown',
+    name: 'التاج الذهبي للملياردير العسكري',
+    nameEn: 'Militia Billionaire Golden Crown',
+    rarity: 'خرافي ★★★★★',
+    rarityColor: 'text-yellow-300 border-yellow-400',
+    perk: '+15% قطع نقدية إضافية عند قتل الأعداء',
+    icon: '👑',
+    unlocked: true,
+  },
+  {
+    id: 'captain_hat',
+    name: 'قبعة القبطان الحربية الكلاسيكية',
+    nameEn: 'Classic War Captain Hat',
+    rarity: 'ملحمي ★★★★',
+    rarityColor: 'text-indigo-400 border-indigo-500',
+    perk: '+10% معنويات قتالية وسرعة تجديد وقود النفاثة',
+    icon: '👨‍✈️',
+    unlocked: true,
+  },
+  {
     id: 'nvg_helmet',
     name: 'خوذة الرؤية الليلية NVG',
     nameEn: 'Night Vision Tactical Helmet',
@@ -328,6 +358,66 @@ const CAMO_PATTERNS: EquipmentOption[] = [
     unlocked: false,
     cost: '200 💎',
   },
+  {
+    id: 'pharaoh_suit',
+    name: 'بدلة الفرعون الملكية الخرافية (Pharaoh X-Suit)',
+    nameEn: 'Royal Pharaoh X-Suit',
+    rarity: 'خرافي 👑 ★★★★★',
+    rarityColor: 'text-amber-400 border-amber-500 animate-pulse',
+    perk: 'مظهر الإله الذهبي الفرعوني بتأثيرات البلازما الغامضة',
+    icon: '👑',
+    camoHex: '#eab308',
+    unlocked: false,
+    cost: 'صندوق الغنائم 📦',
+  },
+  {
+    id: 'tesla_suit',
+    name: 'درع تسلا السيبراني المستقبلي (Tesla Cyber-Armor)',
+    nameEn: 'Tesla Exo Cyber-Armor',
+    rarity: 'أسطوري ⚡ ★★★★★',
+    rarityColor: 'text-cyan-400 border-cyan-500',
+    perk: 'درع معدني مشحون بومضات البرق والكهرباء الزرقاء',
+    icon: '🤖',
+    camoHex: '#0ea5e9',
+    unlocked: false,
+    cost: 'صندوق الغنائم 📦',
+  },
+  {
+    id: 'ninja_suit',
+    name: 'بدلة نينجا العمليات الخاصة (Shadow Ninja)',
+    nameEn: 'Shadow Ninja Combat Suit',
+    rarity: 'أسطوري 🥷 ★★★★★',
+    rarityColor: 'text-gray-300 border-gray-400',
+    perk: 'زي ممتص للضوء بالكامل للتسلل والاغتيال في العتمة',
+    icon: '🥷',
+    camoHex: '#09090b',
+    unlocked: false,
+    cost: 'صندوق الغنائم 📦',
+  },
+  {
+    id: 'joker_suit',
+    name: 'بدلة الجوكر المهرج المرعب (Sinister Joker)',
+    nameEn: 'Sinister Joker Clown Suit',
+    rarity: 'ملحمي 🤡 ★★★★',
+    rarityColor: 'text-purple-400 border-purple-500',
+    perk: 'هيبة مرعبة ومظهر ساخر يربك الأعداء في ساحة القتال',
+    icon: '🤡',
+    camoHex: '#701a75',
+    unlocked: false,
+    cost: 'صندوق الغنائم 📦',
+  },
+  {
+    id: 'ghillie_suit',
+    name: 'بدلة التمويه العشبي العسكري الكامل (Ghillie Suit)',
+    nameEn: 'Tactical Ghillie Suit',
+    rarity: 'نادر 🌿 ★★★★',
+    rarityColor: 'text-emerald-400 border-emerald-500',
+    perk: 'التلاشي والتمويه العشبي المطلق للقناصة المحترفين',
+    icon: '🌿',
+    camoHex: '#14532d',
+    unlocked: false,
+    cost: 'صندوق الغنائم 📦',
+  },
 ];
 
 const FACE_ACCESSORIES: EquipmentOption[] = [
@@ -539,7 +629,7 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
   const [equippedPrimary, setEquippedPrimary] = useState(() => settingsManager.getSettings().equippedPrimaryWeapon || 'sniper');
   const [equippedCape, setEquippedCape] = useState<'none' | 'tactical_cape' | 'commando_scarf' | 'full_set'>('full_set');
   const [enablePhysics, setEnablePhysics] = useState<boolean>(true);
-  const [previewMode, setPreviewMode] = useState<'3d' | '2d'>('3d');
+  const [previewMode, setPreviewMode] = useState<'3d' | '2d'>('2d');
   const [selectedEnv, setSelectedEnv] = useState<PreviewEnvironmentType>(
     () => settingsManager.getSettings().previewEnvironment || 'training_grounds'
   );
@@ -759,6 +849,7 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
             />
           ) : (
             <LiveSoldierCanvas
+              skinId={equippedSkinId}
               camoColor={camoColor}
               headgear={equippedHeadgear}
               bodyArmor={equippedArmor}
@@ -1205,10 +1296,11 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
             {HEADGEARS.map((h) => {
               const isEquipped = equippedHeadgear === h.id;
+              const isUnlocked = h.unlocked || (settingsManager.getSettings().unlockedHeadgears || []).includes(h.id);
               return (
                 <div
                   key={h.id}
-                  onClick={() => h.unlocked && handleEquipHeadgear(h)}
+                  onClick={() => isUnlocked && handleEquipHeadgear(h)}
                   className={`bg-[#121d15] border-2 rounded-2xl p-3 flex flex-col justify-between transition-all cursor-pointer ${
                     isEquipped
                       ? 'border-cyan-400 bg-[#14282c] shadow-lg shadow-cyan-500/20'
@@ -1236,20 +1328,20 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
                   </div>
 
                   <button
-                    disabled={!h.unlocked}
+                    disabled={!isUnlocked}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (h.unlocked) handleEquipHeadgear(h);
+                      if (isUnlocked) handleEquipHeadgear(h);
                     }}
                     className={`w-full mt-2 py-1.5 rounded-xl text-xs font-black transition-all ${
                       isEquipped
                         ? 'bg-cyan-950 text-cyan-300 border border-cyan-600'
-                        : h.unlocked
+                        : isUnlocked
                         ? 'bg-cyan-500 hover:bg-cyan-400 text-black active:scale-95'
                         : 'bg-[#161c17] text-gray-500 cursor-not-allowed'
                     }`}
                   >
-                    {isEquipped ? 'مُفعل حالياً' : h.unlocked ? 'إلباس الجندي' : `مغلق (${h.cost})`}
+                    {isEquipped ? 'مُفعل حالياً' : isUnlocked ? 'إلباس الجندي' : `مغلق (${h.cost || 'صندوق الغنائم 📦'})`}
                   </button>
                 </div>
               );
@@ -1374,10 +1466,11 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
             {CAMO_PATTERNS.map((c) => {
               const isEquipped = equippedSkinId === c.id;
+              const isUnlocked = c.unlocked || (settingsManager.getSettings().unlockedSkins || []).includes(c.id);
               return (
                 <div
                   key={c.id}
-                  onClick={() => c.unlocked && handleEquipCamo(c)}
+                  onClick={() => isUnlocked && handleEquipCamo(c)}
                   className={`bg-[#121d15] border-2 rounded-2xl p-3 flex flex-col justify-between transition-all cursor-pointer ${
                     isEquipped
                       ? 'border-emerald-400 bg-[#152a1b] shadow-lg shadow-emerald-500/20'
@@ -1405,20 +1498,20 @@ export default function CharacterCustomization({ onClose }: { onClose?: () => vo
                   </div>
 
                   <button
-                    disabled={!c.unlocked}
+                    disabled={!isUnlocked}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (c.unlocked) handleEquipCamo(c);
+                      if (isUnlocked) handleEquipCamo(c);
                     }}
                     className={`w-full mt-2 py-1.5 rounded-xl text-xs font-black transition-all ${
                       isEquipped
                         ? 'bg-emerald-950 text-emerald-300 border border-emerald-600'
-                        : c.unlocked
+                        : isUnlocked
                         ? 'bg-emerald-600 hover:bg-emerald-500 text-black active:scale-95'
                         : 'bg-[#161c17] text-gray-500 cursor-not-allowed'
                     }`}
                   >
-                    {isEquipped ? 'مُفعل حالياً' : c.unlocked ? 'ارتداء الزي' : `مغلق (${c.cost})`}
+                    {isEquipped ? 'مُفعل حالياً' : isUnlocked ? 'ارتداء الزي' : `مغلق (${c.cost || 'صندوق الغنائم 📦'})`}
                   </button>
                 </div>
               );

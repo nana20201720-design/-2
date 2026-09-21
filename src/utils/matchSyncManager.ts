@@ -43,7 +43,8 @@ class MatchSyncManager {
   private currentRoomCode: string | null = null;
   private unsubscribeSnapshot: (() => void) | null = null;
   private lastWriteTime = 0;
-  private writeIntervalMs = 70; // ~14 updates/sec for smooth fluid movement
+  private writeIntervalMs = 120; // ~8 updates/sec for smooth network sync without network congestion
+  private consecutiveErrors = 0;
   private pingMs = 38; // Initial estimate
   private pingHistory: number[] = [35, 40, 38];
   private isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -119,7 +120,11 @@ class MatchSyncManager {
     if (!this.currentRoomCode) return;
 
     const now = Date.now();
-    if (now - this.lastWriteTime < this.writeIntervalMs) {
+    const effectiveInterval = this.consecutiveErrors > 0 
+      ? Math.min(2000, this.writeIntervalMs * Math.pow(2, this.consecutiveErrors))
+      : this.writeIntervalMs;
+
+    if (now - this.lastWriteTime < effectiveInterval) {
       return; // Throttled to preserve quota and avoid network congestion
     }
 
@@ -153,12 +158,13 @@ class MatchSyncManager {
 
     setDoc(playerDocRef, payload, { merge: true })
       .then(() => {
+        this.consecutiveErrors = 0;
         const roundTripMs = Math.round(performance.now() - startTime);
         this.recordPing(roundTripMs);
       })
       .catch((err) => {
-        console.warn('Failed to sync player position:', err);
-        this.recordPing(250); // Mark elevated latency on error
+        this.consecutiveErrors = Math.min(5, this.consecutiveErrors + 1);
+        this.recordPing(300); // Mark elevated latency on error
       });
   }
 

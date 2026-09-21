@@ -69,6 +69,16 @@ class HapticsEngine {
       navigator.vibrate([20, 30, 20, 30, 50]);
     } catch {}
   }
+
+  /**
+   * Error / Locked feedback pulse ([40, 40, 40])
+   */
+  public error() {
+    if (!this.isEnabled()) return;
+    try {
+      navigator.vibrate([40, 40, 40]);
+    } catch {}
+  }
 }
 
 export const haptics = new HapticsEngine();

@@ -139,6 +139,15 @@ class SoundManager {
     this.playNoise(0.05, 0.5, 3000);
   }
 
+  public playWeaponSound(weapon: string) {
+    const w = (weapon || '').toLowerCase();
+    if (w.includes('shotgun')) this.playShotgun();
+    else if (w.includes('rifle') || w.includes('m4')) this.playRifle();
+    else if (w.includes('rocket') || w.includes('rpg')) this.playRocketLaunch();
+    else if (w.includes('sniper')) this.playSniper();
+    else this.playPistol();
+  }
+
   public playShotgun() {
     this.initContext();
     if (!this.ctx || !this.masterGain || this.isMuted) return;

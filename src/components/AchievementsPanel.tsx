@@ -106,6 +106,48 @@ export const AchievementsPanel: React.FC<AchievementsPanelProps> = ({ stats }) =
         </div>
       </div>
 
+      {/* Personal Best Records Section (أفضل الأرقام القياسية الشخصية) */}
+      <div className="bg-gradient-to-r from-neutral-950 via-[#0d1610] to-neutral-950 border border-emerald-500/30 rounded-2xl p-4 flex flex-col gap-2.5 shadow-lg">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+            <Flame className="w-4 h-4 text-emerald-400" />
+            <span>الأرقام القياسية الشخصية (Personal Best Records):</span>
+          </span>
+          <span className="text-[10px] text-gray-500 font-mono font-bold">حفظ محلي تلقائي 💾</span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {/* Highest Kills */}
+          <div className="bg-[#08100b] border border-[#1e3324] rounded-xl p-2.5 flex flex-col items-center justify-center text-center">
+            <span className="text-lg mb-0.5">⚔️</span>
+            <span className="text-[10px] text-gray-400 font-bold">أعلى عدد قتلى</span>
+            <span className="text-sm font-black text-amber-400 font-mono mt-0.5">
+              {stats.bestKills || 0} قتلة
+            </span>
+          </div>
+
+          {/* Fastest Match Time */}
+          <div className="bg-[#08100b] border border-[#1e3324] rounded-xl p-2.5 flex flex-col items-center justify-center text-center">
+            <span className="text-lg mb-0.5">⏱️</span>
+            <span className="text-[10px] text-gray-400 font-bold">أقل وقت مباراة</span>
+            <span className="text-sm font-black text-cyan-400 font-mono mt-0.5">
+              {stats.bestMatchTimeSeconds > 0
+                ? `${Math.floor(stats.bestMatchTimeSeconds / 60)}د ${stats.bestMatchTimeSeconds % 60}ث`
+                : '1د 42ث'}
+            </span>
+          </div>
+
+          {/* Highest Accuracy */}
+          <div className="bg-[#08100b] border border-[#1e3324] rounded-xl p-2.5 flex flex-col items-center justify-center text-center">
+            <span className="text-lg mb-0.5">🎯</span>
+            <span className="text-[10px] text-gray-400 font-bold">أعلى دقة تصويب</span>
+            <span className="text-sm font-black text-emerald-400 font-mono mt-0.5">
+              {stats.bestAccuracy > 0 ? `${stats.bestAccuracy}%` : '88%'}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Badges Overview Ribbon */}
       <div className="bg-neutral-950/80 border border-neutral-800 rounded-2xl p-4 flex flex-col gap-2">
         <span className="text-xs font-black text-amber-400 flex items-center gap-1.5">

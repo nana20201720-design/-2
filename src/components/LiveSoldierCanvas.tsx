@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 export interface LiveSoldierCanvasProps {
+  skinId?: string;
   camoColor: string;
   headgear: string;
   bodyArmor: string;
@@ -27,6 +28,7 @@ export interface LiveSoldierCanvasProps {
 }
 
 export const LiveSoldierCanvas: React.FC<LiveSoldierCanvasProps> = ({
+  skinId,
   camoColor,
   headgear,
   bodyArmor,
@@ -154,6 +156,7 @@ export const LiveSoldierCanvas: React.FC<LiveSoldierCanvasProps> = ({
 
       // Draw Soldier with 2D Visuals
       drawSoldier2D(ctx, {
+        skinId,
         camoColor,
         headgear,
         bodyArmor,
@@ -187,7 +190,7 @@ export const LiveSoldierCanvas: React.FC<LiveSoldierCanvasProps> = ({
     return () => {
       cancelAnimationFrame(animRef.current);
     };
-  }, [camoColor, headgear, bodyArmor, eyewear, beard, jetpackStyle, trailColor, skinTone, weapon, width, height]);
+  }, [skinId, camoColor, headgear, bodyArmor, eyewear, beard, jetpackStyle, trailColor, skinTone, weapon, width, height]);
 
   // Touch and Drag handlers for 360 degree rotation
   const handleMouseDown = (e: React.MouseEvent) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Swords,
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { soundManager } from '../audio/soundManager';
 import { settingsManager } from '../utils/settingsManager';
+import { statsManager } from '../utils/statsManager';
 import { haptics } from '../utils/haptics';
 import BattleStatsDashboard from './BattleStatsDashboard';
 import { BattleArena } from './BattleArena';
@@ -34,11 +35,19 @@ import { GameMode } from '../types';
 
 const getCamoHexFromSkinId = (skinId?: string) => {
   switch (skinId) {
-    case 'desert_tan': return '#c2a66c';
-    case 'urban_grey': return '#4b5563';
+    case 'desert_tan':
+    case 'desert_camo': return '#c2a66c';
+    case 'urban_grey':
+    case 'urban_digital': return '#4b5563';
+    case 'stealth_black': return '#111827';
     case 'navy_seal': return '#1e3a8a';
     case 'cyber_cyan': return '#0891b2';
     case 'royal_gold': return '#ca8a04';
+    case 'pharaoh_suit': return '#eab308';
+    case 'tesla_suit': return '#0ea5e9';
+    case 'ninja_suit': return '#09090b';
+    case 'joker_suit': return '#701a75';
+    case 'ghillie_suit': return '#14532d';
     case 'woodland_camo':
     default: return '#2d4a22';
   }
@@ -56,6 +65,10 @@ interface CombatantProfile {
 }
 
 export default function BattleScreen() {
+  const savedSettings = useSyncExternalStore(
+    (callback) => settingsManager.subscribe(callback),
+    () => settingsManager.getSettings()
+  );
   const [matchSearching, setMatchSearching] = useState(false);
   const [matchTimer, setMatchTimer] = useState(222);
   const [spawnNotification, setSpawnNotification] = useState<string | null>(null);
@@ -106,9 +119,9 @@ export default function BattleScreen() {
       {
         id: 'dc1',
         title: 'قناص الظل (Shadow Sniper)',
-        desc: 'تصفية 3 جنود نخبة باستخدام بندقية القنص القتالية.',
+        desc: 'تصفية 3 جنود نخبة في المعارك القتالية.',
         target: 3,
-        current: 1,
+        current: 0,
         rewardCoins: 400,
         rewardGems: 15,
         completed: false,
@@ -118,7 +131,7 @@ export default function BattleScreen() {
       {
         id: 'dc2',
         title: 'قناص الرؤوس المزدوج (Headshot Specialist)',
-        desc: 'تنفيذ ضربتين قتالية في الرأس (Headshots) مباشرة.',
+        desc: 'تنفيذ ضربتين قتالية في الرأس (Headshots) أثناء الاشتباك.',
         target: 2,
         current: 0,
         rewardCoins: 500,
@@ -130,7 +143,7 @@ export default function BattleScreen() {
       {
         id: 'dc3',
         title: 'مدرع الصمود التكتيكي (Tactical Juggernaut)',
-        desc: 'البقاء حياً بنسبة صحة 100% لمدة 45 ثانية في القتال الحر.',
+        desc: 'تحقيق نصر عسكري في المعركة دون التعرض للهزيمة.',
         target: 1,
         current: 0,
         rewardCoins: 350,
@@ -164,33 +177,46 @@ export default function BattleScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // Sync Daily Challenge progress when a match in the Arena is completed
+  // Sync Daily Challenge progress when a match in the Arena is completed strictly with real combat stats
   useEffect(() => {
     if (activeArenaMatch) {
       setLastMatchCompleted(true);
     } else if (lastMatchCompleted) {
       setLastMatchCompleted(false);
-      setDailyChallenges((prev) => {
-        return prev.map(c => {
-          if (c.completed) return c;
-          
-          // Randomly advance progress as a reward for playing the match
-          const nextVal = Math.min(c.target, c.current + 1);
-          const completed = nextVal >= c.target;
-          
-          if (completed) {
-            triggerNotification(`🎉 اكتمل التحدي اليومي: "${c.title}"! جاهز للاستلام!`);
-          } else {
-            triggerNotification(`🎯 أحرزت تقدماً في التحدي اليومي: "${c.title}" (+1)`);
-          }
-          
-          return {
-            ...c,
-            current: nextVal,
-            completed,
-          };
+      
+      const stats = statsManager.getStats();
+      const lastMatch = stats.matchHistory && stats.matchHistory.length > 0 ? stats.matchHistory[0] : null;
+
+      if (lastMatch) {
+        setDailyChallenges((prev) => {
+          return prev.map((c) => {
+            if (c.completed) return c;
+
+            let add = 0;
+            if (c.iconType === 'kills') add = lastMatch.kills || 0;
+            else if (c.iconType === 'headshots') add = lastMatch.headshots || 0;
+            else if (c.iconType === 'survival') add = lastMatch.isVictory ? 1 : 0;
+            else if (c.iconType === 'grenade') add = lastMatch.damage > 200 ? 1 : 0;
+
+            if (add <= 0) return c;
+
+            const nextVal = Math.min(c.target, c.current + add);
+            const completed = nextVal >= c.target;
+
+            if (completed && !c.completed) {
+              triggerNotification(`🎉 اكتمل التحدي القتالي: "${c.title}"! يمكنك استلام المكافأة الآن! 🎁`);
+            } else {
+              triggerNotification(`🎯 أحرزت تقدماً في التحدي: "${c.title}" (${nextVal}/${c.target})`);
+            }
+
+            return {
+              ...c,
+              current: nextVal,
+              completed,
+            };
+          });
         });
-      });
+      }
     }
   }, [activeArenaMatch, lastMatchCompleted]);
 
@@ -446,34 +472,29 @@ export default function BattleScreen() {
           <div className="absolute w-44 h-44 bg-cyan-400/15 rounded-full blur-2xl animate-pulse pointer-events-none" />
           
           <div className="relative z-10 w-full flex flex-col items-center">
-            {(() => {
-              const saved = settingsManager.getSettings();
-              return (
-                <div
-                  className="w-full max-w-[300px] h-[260px] relative rounded-xl overflow-hidden cursor-grab active:cursor-grabbing border border-emerald-500/20 bg-black/40 shadow-inner"
-                  title="اسحب لتدوير المحارب 3D بزاوية 360 درجة"
-                >
-                  <ThreeSoldierCanvas
-                    camoColor={getCamoHexFromSkinId(saved.equippedSkin)}
-                    headgear={saved.equippedHeadgear || 'camo_helmet'}
-                    bodyArmor={saved.equippedArmor || 'molle_vest'}
-                    eyewear={saved.equippedEyewear || 'aviators'}
-                    beard={saved.equippedBeard || 'stubble'}
-                    jetpackStyle={saved.equippedJetpack || 'military_dual'}
-                    trailColor={saved.equippedTrail || '#06b6d4'}
-                    weapon={saved.equippedPrimaryWeapon || 'sniper'}
-                    height={260}
-                    interactive={true}
-                    autoRotate={true}
-                    showPedestal={true}
-                  />
-                  <div className="absolute top-2 right-2 bg-black/70 px-2 py-0.5 rounded text-[10px] text-amber-300 font-bold border border-amber-500/30 flex items-center gap-1 pointer-events-none">
-                    <Sparkles size={10} className="text-amber-400" />
-                    <span>مجسم 3D حي</span>
-                  </div>
-                </div>
-              );
-            })()}
+            <div
+              className="w-full max-w-[300px] h-[260px] relative rounded-xl overflow-hidden cursor-grab active:cursor-grabbing border border-emerald-500/20 bg-black/40 shadow-inner"
+              title="معاينة واستعراض محارب ميني ميليشيا 2D"
+            >
+              <ThreeSoldierCanvas
+                camoColor={getCamoHexFromSkinId(savedSettings.equippedSkin)}
+                headgear={savedSettings.equippedHeadgear || 'camo_helmet'}
+                bodyArmor={savedSettings.equippedArmor || 'molle_vest'}
+                eyewear={savedSettings.equippedEyewear || 'aviators'}
+                beard={savedSettings.equippedBeard || 'stubble'}
+                jetpackStyle={savedSettings.equippedJetpack || 'military_dual'}
+                trailColor={savedSettings.equippedTrail || '#06b6d4'}
+                weapon={savedSettings.equippedPrimaryWeapon || 'sniper'}
+                height={260}
+                interactive={true}
+                autoRotate={true}
+                showPedestal={true}
+              />
+              <div className="absolute top-2 right-2 bg-black/70 px-2 py-0.5 rounded text-[10px] text-emerald-400 font-bold border border-emerald-500/30 flex items-center gap-1 pointer-events-none">
+                <Sparkles size={10} className="text-emerald-400" />
+                <span>المحارب 2D الميداني</span>
+              </div>
+            </div>
           </div>
 
           {/* Loadout strip */}

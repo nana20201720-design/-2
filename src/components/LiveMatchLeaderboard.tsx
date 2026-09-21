@@ -15,7 +15,7 @@ interface LiveMatchLeaderboardProps {
   players?: PlayerStats[];
 }
 
-export const LiveMatchLeaderboard: React.FC<LiveMatchLeaderboardProps> = ({ players }) => {
+export const LiveMatchLeaderboard: React.FC<LiveMatchLeaderboardProps> = React.memo(({ players }) => {
   if (!players || players.length === 0) return null;
 
   // Sort players by kills descending, and filter out bots (isPlayer === false)
@@ -55,4 +55,4 @@ export const LiveMatchLeaderboard: React.FC<LiveMatchLeaderboardProps> = ({ play
       </div>
     </motion.div>
   );
-};
+});

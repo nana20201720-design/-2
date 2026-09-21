@@ -3,6 +3,7 @@ import { ParticleSystem } from './particles';
 import { MAP_WIDTH, MAP_HEIGHT, MapData } from './mapData';
 import { WEAPON_CONFIGS } from './weapons';
 import { drawWeaponSprite2D } from './weaponSprites';
+import { drawSoldier2D } from './soldierVisuals';
 import { settingsManager } from '../utils/settingsManager';
 import { weatherSystem } from './weatherEngine';
 
@@ -1384,51 +1385,55 @@ export class GameRenderer {
     }
 
     // 4. Trees
-    for (const tree of scenery.trees) {
-      ctx.save();
-      ctx.translate(tree.x, tree.y);
-      ctx.scale(tree.scale, tree.scale);
+    if (scenery.trees) {
+      for (const tree of scenery.trees) {
+        ctx.save();
+        ctx.translate(tree.x, tree.y);
+        ctx.scale(tree.scale, tree.scale);
 
-      // Trunk
-      ctx.fillStyle = '#451a03';
-      ctx.fillRect(-10, -90, 20, 90);
+        // Trunk
+        ctx.fillStyle = '#451a03';
+        ctx.fillRect(-10, -90, 20, 90);
 
-      // Lush leafy canopy circles
-      ctx.fillStyle = '#15803d';
-      ctx.beginPath();
-      ctx.arc(-22, -110, 36, 0, Math.PI * 2);
-      ctx.arc(22, -110, 36, 0, Math.PI * 2);
-      ctx.arc(0, -145, 45, 0, Math.PI * 2);
-      ctx.fill();
+        // Lush leafy canopy circles
+        ctx.fillStyle = '#15803d';
+        ctx.beginPath();
+        ctx.arc(-22, -110, 36, 0, Math.PI * 2);
+        ctx.arc(22, -110, 36, 0, Math.PI * 2);
+        ctx.arc(0, -145, 45, 0, Math.PI * 2);
+        ctx.fill();
 
-      // Highlight leaves
-      ctx.fillStyle = '#22c55e';
-      ctx.beginPath();
-      ctx.arc(-10, -140, 25, 0, Math.PI * 2);
-      ctx.arc(15, -120, 20, 0, Math.PI * 2);
-      ctx.fill();
+        // Highlight leaves
+        ctx.fillStyle = '#22c55e';
+        ctx.beginPath();
+        ctx.arc(-10, -140, 25, 0, Math.PI * 2);
+        ctx.arc(15, -120, 20, 0, Math.PI * 2);
+        ctx.fill();
 
-      ctx.restore();
+        ctx.restore();
+      }
     }
 
     // 5. Signs
-    for (const sign of scenery.signs) {
-      ctx.save();
-      ctx.fillStyle = '#475569';
-      ctx.fillRect(sign.x + 8, sign.y, 4, 25); // post
-      
-      // Board
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillRect(sign.x - 36, sign.y - 20, 92, 22);
-      ctx.strokeStyle = '#b91c1c';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(sign.x - 36, sign.y - 20, 92, 22);
+    if (scenery.signs) {
+      for (const sign of scenery.signs) {
+        ctx.save();
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(sign.x + 8, sign.y, 4, 25); // post
+        
+        // Board
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(sign.x - 36, sign.y - 20, 92, 22);
+        ctx.strokeStyle = '#b91c1c';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sign.x - 36, sign.y - 20, 92, 22);
 
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 9px Chakra Petch, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(sign.text, sign.x + 10, sign.y - 6);
-      ctx.restore();
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 9px Chakra Petch, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(sign.text, sign.x + 10, sign.y - 6);
+        ctx.restore();
+      }
     }
 
     // 6. Mounted Tactical Spotlights & Cavern Ceiling Lanterns
@@ -2132,6 +2137,40 @@ export class GameRenderer {
 
     const isFacingRight = char.facingRight;
     const facingMultiplier = isFacingRight ? 1 : -1;
+
+    // Draw sliding holographic shadows behind the player
+    if (char.isSliding) {
+      const dir = char.slideDirection || (char.facingRight ? 1 : -1);
+      const trailCount = 2;
+      for (let t = 1; t <= trailCount; t++) {
+        ctx.save();
+        // Shift back along direction of slide
+        ctx.translate(-dir * t * 14, 0);
+        
+        // Draw a glowing silhouette of the sliding torso and head
+        ctx.fillStyle = `rgba(56, 189, 248, ${0.35 / t})`;
+        ctx.strokeStyle = `rgba(56, 189, 248, ${0.5 / t})`;
+        ctx.lineWidth = 1.8;
+        
+        // Crouching Torso Silhouette
+        const torsoW = 19;
+        const torsoH = 15; // Crouched height
+        ctx.beginPath();
+        ctx.roundRect(-torsoW / 2, 0, torsoW, torsoH, 7.5);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Head Silhouette
+        const headX = 2;
+        const headY = -12;
+        ctx.beginPath();
+        ctx.roundRect(headX - 10.5, headY - 10.5, 21, 21, 10.5); // Squircle head
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.restore();
+      }
+    }
     
     // Dynamic 3D Environment Motion: Landing Squash & Stretch + Crouch Shift
     let crouchShift = char.isCrouching ? 8 : 0;
@@ -2258,804 +2297,40 @@ export class GameRenderer {
       ctx.restore();
     }
 
-    ctx.scale(facingMultiplier, 1);
+    const currWeapon = char.weapons[char.currentWeaponIndex] || "pistol";
+    drawSoldier2D(ctx, {
+      skinId: char.skinId || (char.isPlayer ? settingsManager.getSettings().equippedSkin : undefined) || 'woodland_camo',
+      camoColor: char.camoColor,
+      headgear: char.headgear,
+      bodyArmor: char.bodyArmor,
+      eyewear: char.eyewear,
+      sunglasses: char.sunglasses,
+      beard: char.beard,
+      jetpackStyle: char.jetpackStyle,
+      skinTone: char.skinTone,
+      weapon: currWeapon,
+      aimAngle: char.aimAngle,
+      isFacingRight: char.facingRight,
+      isJetpacking: char.isJetpacking,
+      isGrounded: char.isGrounded,
+      walkCycle: char.walkCycle,
+      isCrouching: char.isCrouching,
+      recoilOffset: char.recoilOffset,
+      muzzleFlashTimer: char.muzzleFlashTimer,
+      trailColor: char.trailColor,
+      animTime: this.animTime,
+      charAvatarIndex: char.charAvatarIndex,
+      scale: 1.0,
+    });
 
-    // Jetpack Body & Flight Exhaust
-    const jetpackX = -13;
-    const jetpackY = -6 + crouchShift;
-
-    // Resolve Trail / Jet Flame colors
-    let primaryFlameColor = '#f97316';
-    let innerFlameColor = '#fef08a';
-    let smokeRingColor = 'rgba(255, 255, 255, 0.7)';
-
-    if (char.trailColor === '#a855f7' || char.trailColor === 'neon_purple') {
-      primaryFlameColor = '#a855f7';
-      innerFlameColor = '#f0abfc';
-      smokeRingColor = 'rgba(216, 180, 254, 0.7)';
-    } else if (char.trailColor === '#10b981' || char.trailColor === 'toxic_acid') {
-      primaryFlameColor = '#22c55e';
-      innerFlameColor = '#86efac';
-      smokeRingColor = 'rgba(134, 239, 172, 0.7)';
-    } else if (char.trailColor === '#ef4444' || char.trailColor === 'inferno') {
-      primaryFlameColor = '#ef4444';
-      innerFlameColor = '#fde047';
-      smokeRingColor = 'rgba(254, 215, 170, 0.7)';
-    } else if (char.trailColor === '#0284c7' || char.trailColor === 'arc_plasma') {
-      primaryFlameColor = '#06b6d4';
-      innerFlameColor = '#e0f2fe';
-      smokeRingColor = 'rgba(186, 230, 253, 0.7)';
-    } else if (char.trailColor === '#eab308' || char.trailColor === 'gold_sunfire') {
-      primaryFlameColor = '#eab308';
-      innerFlameColor = '#fef08a';
-      smokeRingColor = 'rgba(254, 240, 138, 0.8)';
-    }
-
-    // Dual Jetpack Thruster Flames & Smoke Puffs
-    const jPower = char.jetpackPower !== undefined ? char.jetpackPower : (char.isJetpacking ? 1.0 : 0.0);
-    if (jPower > 0.02) {
-      ctx.save();
-      ctx.globalAlpha = Math.min(1.0, jPower * 1.25);
-
-      const flameLen = (18 + Math.sin(this.animTime * 32) * 8) * jPower;
-
-      // Outer Jet Flame Cones
-      ctx.fillStyle = primaryFlameColor;
-      ctx.beginPath();
-      ctx.moveTo(jetpackX - 4, jetpackY + 22);
-      ctx.lineTo(jetpackX + 1, jetpackY + 22 + flameLen);
-      ctx.lineTo(jetpackX + 6, jetpackY + 22);
-      ctx.fill();
-
-      // Inner Bright Yellow / Core
-      ctx.fillStyle = innerFlameColor;
-      ctx.beginPath();
-      ctx.moveTo(jetpackX - 2, jetpackY + 22);
-      ctx.lineTo(jetpackX + 1, jetpackY + 20 + flameLen * 0.65);
-      ctx.lineTo(jetpackX + 4, jetpackY + 22);
-      ctx.fill();
-
-      // Expanding White Smoke Rings / Puffs trailing underneath boots (Iconic Doodle Army 2 look)
-      ctx.strokeStyle = smokeRingColor;
-      ctx.fillStyle = smokeRingColor.replace('0.7', '0.35').replace('0.8', '0.4');
-      ctx.lineWidth = 2;
-      for (let s = 1; s <= 3; s++) {
-        const smokeOffset = (this.animTime * 50 + s * 14) % 45;
-        const sRadius = (4 + smokeOffset * 0.25) * jPower;
-        ctx.beginPath();
-        ctx.arc(jetpackX + 1, jetpackY + 22 + flameLen + smokeOffset * jPower, sRadius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-
-    // Jetpack Canister Unit Rendering based on Style
-    if (char.jetpackStyle === 'cyber_plasma') {
-      ctx.fillStyle = '#0f172a';
-      ctx.strokeStyle = '#06b6d4';
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.roundRect(jetpackX - 4, jetpackY - 1, 16, 23, 4);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#22d3ee';
-      ctx.fillRect(jetpackX - 2, jetpackY + 4, 12, 3);
-      ctx.fillRect(jetpackX - 2, jetpackY + 11, 12, 3);
-    } else if (char.jetpackStyle === 'golden_falcon') {
-      ctx.fillStyle = '#ca8a04';
-      ctx.strokeStyle = '#fef08a';
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.roundRect(jetpackX - 5, jetpackY - 2, 17, 24, 4);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#fef08a';
-      ctx.beginPath();
-      ctx.moveTo(jetpackX - 5, jetpackY + 2);
-      ctx.lineTo(jetpackX - 12, jetpackY - 3);
-      ctx.lineTo(jetpackX - 5, jetpackY + 9);
-      ctx.closePath();
-      ctx.fill();
-    } else if (char.jetpackStyle === 'toxic_jets') {
-      ctx.fillStyle = '#14532d';
-      ctx.strokeStyle = '#22c55e';
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.roundRect(jetpackX - 4, jetpackY, 15, 22, 4);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#84cc16';
-      ctx.fillRect(jetpackX - 2, jetpackY + 5, 11, 4);
-    } else {
-      // Standard Heavy Military Dual Turbine
-      ctx.fillStyle = '#334155';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.8;
-      ctx.beginPath();
-      ctx.roundRect(jetpackX - 4, jetpackY, 15, 22, 4);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#0284c7';
-      ctx.fillRect(jetpackX - 2, jetpackY + 4, 11, 4);
-    }
-
-    // Floating Cartoon Boots
-    const legY = (char.isCrouching ? 12 : 16) + (crouchShift * 0.4);
-    const walkSin = char.isGrounded ? Math.sin(char.walkCycle) * 6 : 0;
-    const jetLegOffset = jPower * 3; // Boots stretch smoothly downward with thruster wind resistance
-    
-    // Back Boot
-    ctx.fillStyle = '#1c1917';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.ellipse(-6 + (jPower > 0.1 ? -2 : walkSin), legY + jetLegOffset, 7, 5, 0, 0, Math.PI * 2);
-    ctx.fill(); ctx.stroke();
-    // Boot sole
-    ctx.fillStyle = '#44403c';
-    ctx.fillRect(-10 + (jPower > 0.1 ? -2 : walkSin), legY + jetLegOffset + 2, 8, 3);
-
-    // Front Boot
-    ctx.fillStyle = '#1c1917';
-    ctx.beginPath();
-    ctx.ellipse(4 + (jPower > 0.1 ? 2 : -walkSin), legY + jetLegOffset, 7, 5, 0, 0, Math.PI * 2);
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#44403c';
-    ctx.fillRect(0 + (jPower > 0.1 ? 2 : -walkSin), legY + jetLegOffset + 2, 8, 3);
-
-    // Soldier Torso (Pill-shaped military camo vest)
-    const camoBase = char.camoColor || '#365314';
-    ctx.fillStyle = camoBase;
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.roundRect(-9, -8 + crouchShift, 18, 21 - (char.isCrouching ? 6 : 0), 7);
-    ctx.fill();
-    ctx.stroke();
-
-    // Camo Spot Details on Vest
-    ctx.fillStyle = '#1e3a2f';
-    ctx.beginPath();
-    ctx.arc(-3, -2 + crouchShift, 4, 0, Math.PI * 2);
-    ctx.arc(4, 3 + crouchShift, 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    // BODY ARMOR / VEST STYLES
-    if (char.bodyArmor === 'juggernaut') {
-      ctx.fillStyle = '#1e293b';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.roundRect(-8.5, -5 + crouchShift, 17, 13, 3);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(-6.5, -3 + crouchShift, 13, 3);
-      ctx.fillRect(-6.5, 2 + crouchShift, 13, 3);
-    } else if (char.bodyArmor === 'cyber_rig') {
-      ctx.fillStyle = '#0f172a';
-      ctx.strokeStyle = '#06b6d4';
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.roundRect(-8, -4 + crouchShift, 16, 12, 4);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#22d3ee';
-      ctx.beginPath();
-      ctx.arc(0, 2 + crouchShift, 3, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (char.bodyArmor === 'hazmat_suit') {
-      ctx.fillStyle = '#eab308';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.roundRect(-8, -4 + crouchShift, 16, 12, 3);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#000000';
-      ctx.beginPath();
-      ctx.arc(0, 1 + crouchShift, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (char.bodyArmor === 'chest_harness') {
-      ctx.strokeStyle = '#292524';
-      ctx.lineWidth = 3.5;
-      ctx.beginPath();
-      ctx.moveTo(-8, -6 + crouchShift);
-      ctx.lineTo(7, 8 + crouchShift);
-      ctx.stroke();
-      ctx.fillStyle = '#facc15';
-      for (let bi = 0; bi < 3; bi++) {
-        ctx.fillRect(-4 + bi * 4, -4 + bi * 4 + crouchShift, 2.5, 3.5);
-      }
-    } else {
-      // Standard MOLLE Vest
-      ctx.fillStyle = '#1e293b';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.roundRect(-8, -5 + crouchShift, 16, 12, 3);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#334155';
-      for (let pi = 0; pi < 3; pi++) {
-        ctx.fillRect(-5.5 + pi * 4.2, 0 + crouchShift, 3, 5);
-      }
-    }
-
-    // Belt & Buckle
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(-9, 3 + crouchShift, 18, 4);
-    ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(-2, 3 + crouchShift, 4, 4);
-
-    // Head
-    const headX = 0;
-    const headY = -15 + crouchShift;
-    const headRadius = 13.5;
-
-    // Skin Face
-    ctx.fillStyle = char.skinTone || '#fbb587';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(headX, headY, headRadius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Ear
-    ctx.fillStyle = char.skinTone || '#fbb587';
-    ctx.beginPath();
-    ctx.arc(headX - 11, headY, 3.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Big White Cartoon Eyes with Black Pupils
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    // Front eye
-    ctx.beginPath();
-    ctx.ellipse(headX + 5, headY - 1, 5, 4.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    // Back eye
-    ctx.beginPath();
-    ctx.ellipse(headX - 2, headY - 1, 4.5, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Dynamic Black Pupils tracking aim direction
-    const eyeLookAngle = isFacingRight ? char.aimAngle : Math.PI - char.aimAngle;
-    const pupilOffsetX = Math.cos(eyeLookAngle) * 1.8;
-    const pupilOffsetY = Math.sin(eyeLookAngle) * 1.5;
-    ctx.fillStyle = '#000000';
-    ctx.beginPath();
-    ctx.arc(headX + 5.5 + pupilOffsetX, headY - 1 + pupilOffsetY, 2.2, 0, Math.PI * 2);
-    ctx.arc(headX - 1.5 + pupilOffsetX, headY - 1 + pupilOffsetY, 2.0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Eye catchlights
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(headX + 5.5 + pupilOffsetX - 0.7, headY - 1 + pupilOffsetY - 0.7, 0.8, 0, Math.PI * 2);
-    ctx.arc(headX - 1.5 + pupilOffsetX - 0.7, headY - 1 + pupilOffsetY - 0.7, 0.7, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Fierce Eyebrows
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(headX - 5, headY - 6);
-    ctx.lineTo(headX + 1, headY - 4);
-    ctx.moveTo(headX + 2, headY - 4);
-    ctx.lineTo(headX + 9, headY - 6);
-    ctx.stroke();
-
-    // Gritted Teeth Mouth (Iconic Mini Militia combat expression)
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1.8;
-    ctx.fillRect(headX + 1, headY + 5, 8, 4.5);
-    ctx.strokeRect(headX + 1, headY + 5, 8, 4.5);
-    // Vertical Teeth Separator Lines
-    ctx.beginPath();
-    ctx.moveTo(headX + 3.5, headY + 5);
-    ctx.lineTo(headX + 3.5, headY + 9.5);
-    ctx.moveTo(headX + 6, headY + 5);
-    ctx.lineTo(headX + 6, headY + 9.5);
-    ctx.moveTo(headX + 1, headY + 7.2);
-    ctx.lineTo(headX + 9, headY + 7.2);
-    ctx.stroke();
-
-    // BEARD & FACIAL ACCESSORIES
-    if (char.beard === 'stubble' || char.charAvatarIndex === 4) {
-      ctx.fillStyle = 'rgba(28, 25, 23, 0.35)';
-      ctx.beginPath();
-      ctx.arc(headX + 1, headY + 7, 7.5, 0, Math.PI * 0.95);
-      ctx.fill();
-    }
-    if (char.beard === 'full_beard') {
-      ctx.fillStyle = '#1c1917';
-      ctx.beginPath();
-      ctx.roundRect(headX - 4, headY + 6, 13, 6, 3);
-      ctx.fill();
-    }
-    if (char.beard === 'cigar') {
-      ctx.fillStyle = '#78350f';
-      ctx.fillRect(headX + 6, headY + 6, 7, 2.5);
-      ctx.fillStyle = '#ef4444';
-      ctx.fillRect(headX + 13, headY + 6, 2, 2.5);
-    }
-
-    // EYEWEAR (Aviator Sunglasses / Goggles)
-    if (char.eyewear === 'aviators' || (char.sunglasses && char.eyewear !== 'none')) {
-      ctx.fillStyle = '#0f172a';
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.roundRect(headX + 3, headY - 3, 7.5, 6, 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.roundRect(headX - 4, headY - 3, 6.5, 6, 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.strokeStyle = '#94a3b8';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(headX + 2.5, headY - 1);
-      ctx.lineTo(headX + 3.5, headY - 1);
-      ctx.stroke();
-    } else if (char.eyewear === 'ballistic_goggles') {
-      ctx.fillStyle = '#0284c7';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(headX - 5, headY - 4, 16, 7, 3);
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    // HEADGEAR
-    if (char.headgear === 'nvg_helmet') {
-      ctx.fillStyle = '#1e293b';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(headX, headY - 3, 15.5, Math.PI, 0, false);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#4ade80';
-      ctx.beginPath();
-      ctx.arc(headX + 10, headY - 3, 2, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (char.headgear === 'pilot_helmet') {
-      ctx.fillStyle = '#1e293b';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(headX, headY - 3, 16, Math.PI, 0, false);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#047857';
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(headX - 3, headY - 6, 15, 8, 3);
-      ctx.fill();
-      ctx.stroke();
-    } else if (char.headgear === 'gas_mask') {
-      ctx.fillStyle = '#1c1917';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.roundRect(headX - 3, headY - 1, 16, 14, 5);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#475569';
-      ctx.beginPath();
-      ctx.arc(headX + 9, headY + 8, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    } else if (char.headgear === 'beret_green' || char.headgear === 'beret' || char.charAvatarIndex === 3) {
-      ctx.fillStyle = '#3f6212';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.8;
-      ctx.beginPath();
-      ctx.ellipse(headX + 2, headY - 9, 16, 8, -0.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#1c1917';
-      ctx.fillRect(headX - 12, headY - 6, 24, 4);
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(headX + 7, headY - 9, 3, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (char.headgear === 'beret_red' || char.charAvatarIndex === 4) {
-      ctx.fillStyle = '#991b1b';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.8;
-      ctx.beginPath();
-      ctx.ellipse(headX + 2, headY - 9, 16, 8, -0.25, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#1c1917';
-      ctx.fillRect(headX - 12, headY - 6, 24, 4);
-      ctx.fillStyle = '#facc15';
-      ctx.beginPath();
-      ctx.arc(headX + 7, headY - 9, 3, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (char.headgear === 'bandana' || char.charAvatarIndex === 2) {
-      ctx.fillStyle = '#ca8a04';
-      ctx.beginPath();
-      ctx.arc(headX, headY - 4, 14.5, Math.PI * 0.9, Math.PI * 2.1, false);
-      ctx.fill();
-      ctx.fillStyle = '#4d7c0f';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.roundRect(headX - 14, headY - 7, 28, 6, 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(headX - 12, headY - 5);
-      ctx.lineTo(headX - 18, headY);
-      ctx.lineTo(headX - 14, headY - 3);
-      ctx.stroke();
-    } else if (char.headgear === 'skull_mask') {
-      ctx.fillStyle = '#0f172a';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(headX, headY - 3, 15, Math.PI, 0, false);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillRect(headX + 1, headY + 4, 9, 6);
-    } else {
-      // Classic Camo Combat Helmet
-      ctx.fillStyle = char.camoColor || '#4d7c0f';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(headX, headY - 3, 15, Math.PI, 0, false);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#365314';
-      ctx.beginPath();
-      ctx.roundRect(headX - 15, headY - 4, 30, 4.5, 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.strokeStyle = '#1e293b';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.moveTo(headX - 10, headY);
-      ctx.lineTo(headX - 4, headY + 11);
-      ctx.stroke();
-    }
-
-    // ==========================================
-    // PROCEDURAL WEAPON SWAY & WEIGHT DYNAMICS
-    // ==========================================
-    const currWeapon = char.weapons[char.currentWeaponIndex] || 'pistol';
-    const charSeed = (parseInt(char.id.replace(/\D/g, '')) || 1) * 1.5;
-    
-    // Weapon Weight & Inertia Parameters
-    let weightFactor = 1.0;
-    let swayBobFactor = 1.0;
-    let kickMuzzleLift = 0.12;
-    let weaponScale = 1.0;
-    let shoulderOffsetY = 0;
-
-    if (currWeapon === 'pistol') {
-      weightFactor = 0.6;
-      swayBobFactor = 0.65;
-      kickMuzzleLift = 0.08;
-      weaponScale = 0.95;
-    } else if (currWeapon === 'rifle') {
-      weightFactor = 1.0;
-      swayBobFactor = 1.0;
-      kickMuzzleLift = 0.12;
-      weaponScale = 1.0;
-    } else if (currWeapon === 'shotgun') {
-      weightFactor = 1.35;
-      swayBobFactor = 1.25;
-      kickMuzzleLift = 0.22;
-      weaponScale = 1.05;
-    } else if (currWeapon === 'sniper') {
-      weightFactor = 1.75;
-      swayBobFactor = 1.45;
-      kickMuzzleLift = 0.28;
-      weaponScale = 1.1;
-    } else if (currWeapon === 'rocket') {
-      weightFactor = 2.1;
-      swayBobFactor = 1.6;
-      kickMuzzleLift = 0.34;
-      weaponScale = 1.15;
-      shoulderOffsetY = -5; // Shoulder-mounted stance
-    }
-
-    // Crouch Stance Dampener
-    const crouchDampener = char.isCrouching ? 0.35 : 1.0;
-
-    // 1. Horizontal & Vertical Inertia Drag
-    const speedRatioX = Math.max(-1, Math.min(1, char.vx / 360));
-    const speedRatioY = Math.max(-1, Math.min(1, char.vy / 450));
-    const inertiaDragX = -speedRatioX * 5.5 * weightFactor * crouchDampener;
-    const inertiaDragY = speedRatioY * 4.0 * weightFactor * crouchDampener;
-    const inertiaTilt = -speedRatioX * 0.05 * weightFactor * crouchDampener + (speedRatioY * 0.04 * weightFactor);
-
-    // 2. Walking Harmonic Bob & Gait Cadence
-    let walkBobX = 0;
-    let walkBobY = 0;
-    let walkBobTilt = 0;
-    if (char.isGrounded && Math.abs(char.vx) > 15) {
-      walkBobX = Math.cos(char.walkCycle) * 2.0 * swayBobFactor * crouchDampener;
-      walkBobY = Math.sin(char.walkCycle * 2) * 2.8 * swayBobFactor * crouchDampener;
-      walkBobTilt = Math.sin(char.walkCycle) * 0.05 * weightFactor * crouchDampener;
-    }
-
-    // 3. Idle / Breathing Harmonic Sway (Lissajous curve)
-    const breathX = Math.cos(this.animTime * 2.2 + charSeed) * 0.8 * crouchDampener;
-    const breathY = Math.sin(this.animTime * 2.8 + charSeed) * 1.2 * crouchDampener;
-    const breathTilt = Math.sin(this.animTime * 2.0 + charSeed) * 0.02 * crouchDampener;
-
-    // 4. Jetpack Motor Vibration Jitter
-    let jetJitterX = 0;
-    let jetJitterY = 0;
-    let jetTilt = 0;
-    if (char.isJetpacking) {
-      jetJitterX = (Math.sin(this.animTime * 48) + Math.cos(this.animTime * 36)) * 0.7;
-      jetJitterY = (Math.cos(this.animTime * 42) + Math.sin(this.animTime * 30)) * 0.9;
-      jetTilt = Math.sin(this.animTime * 52) * 0.035;
-    }
-
-    // 5. Recoil Muzzle Climb Lift (Snappy upward rotation with dynamic firing vibration)
-    const recoilOffset = char.recoilOffset || 0;
-    const recoilMuzzleClimb = -(recoilOffset / 11) * kickMuzzleLift * (1.0 + Math.sin(this.animTime * 105) * 0.16);
-
-    // 6. Dynamic Weapon Switch Kinetic Tweening (Holster, Drop & Cocking Arc)
-    let switchOffsetY = 0;
-    let switchTilt = 0;
-    let switchScale = 1.0;
-    if (char.weaponSwitchTimer && char.weaponSwitchTimer > 0) {
-      const duration = char.weaponSwitchDuration || 0.32;
-      const t = Math.max(0, Math.min(1, char.weaponSwitchTimer / duration)); // 1 (just switched) down to 0
-      const holsterArc = Math.sin(t * Math.PI); // 0 -> 1 -> 0
-      switchOffsetY = holsterArc * 18; // drops down into holster and springs back up
-      switchTilt = holsterArc * (isFacingRight ? -0.42 : 0.42); // tilts downwards
-      switchScale = 1.0 - holsterArc * 0.12;
-    }
-
-    // 7. Dynamic Realistic Reload Kinetic Tweening (Mag ejection, Fresh Mag Slap, Slide Rack)
-    let reloadTilt = 0;
-    let reloadOffsetY = 0;
-    let reloadHandSlideX = 0;
-    let reloadHandSlideY = 0;
-    let isSlideRacking = false;
-    let reloadProgressRatio = 0;
-
-    if (char.isReloading) {
-      const duration = char.reloadDuration || 1.8;
-      reloadProgressRatio = Math.max(0, Math.min(1, 1 - (char.reloadTimer / duration))); // 0 to 1
-
-      if (reloadProgressRatio < 0.35) {
-        // Phase 1: Magazine Ejection (Gun tilts upward slightly, support hand reaches down)
-        const p1 = reloadProgressRatio / 0.35;
-        reloadTilt = -Math.sin(p1 * Math.PI) * 0.28;
-        reloadOffsetY = Math.sin(p1 * Math.PI) * 3;
-        reloadHandSlideX = -p1 * 8;
-        reloadHandSlideY = p1 * 14;
-      } else if (reloadProgressRatio < 0.72) {
-        // Phase 2: Fresh Magazine Slam (Support hand snaps magazine upwards into receiver)
-        const p2 = (reloadProgressRatio - 0.35) / 0.37;
-        reloadTilt = (1 - p2) * -0.15 + Math.sin(p2 * Math.PI) * 0.14;
-        reloadHandSlideX = -8 + p2 * 8;
-        reloadHandSlideY = 14 * (1 - p2);
-      } else {
-        // Phase 3: Slide Rack / Bolt Cocking (Support hand grips upper slide/charging handle with snappy jerk)
-        const p3 = (reloadProgressRatio - 0.72) / 0.28;
-        isSlideRacking = true;
-        const rackJerk = Math.sin(p3 * Math.PI);
-        reloadTilt = rackJerk * 0.18;
-        reloadOffsetY = -rackJerk * 2;
-        reloadHandSlideX = -rackJerk * 7;
-        reloadHandSlideY = -rackJerk * 3.5;
-      }
-    }
-
-    // Combine all procedural sway displacements
-    const totalSwayX = (inertiaDragX + walkBobX + breathX + jetJitterX) * (isFacingRight ? 1 : -1);
-    const totalSwayY = inertiaDragY + walkBobY + breathY + jetJitterY + shoulderOffsetY + switchOffsetY + reloadOffsetY;
-    const totalSwayTilt = inertiaTilt + walkBobTilt + breathTilt + jetTilt + recoilMuzzleClimb + switchTilt + reloadTilt;
-
-    // Arms & Weapon Transformation with Sway Matrix
-    ctx.save();
-    ctx.translate(totalSwayX, crouchShift + totalSwayY);
-
-    let baseGunAngle = char.aimAngle;
-    if (!isFacingRight) baseGunAngle = Math.PI - char.aimAngle;
-    
-    // Apply procedural tilt to weapon angle
-    ctx.rotate(baseGunAngle + totalSwayTilt);
-    ctx.translate(-recoilOffset * 1.5, 0);
-    ctx.scale(switchScale, switchScale);
-
-    if (char.weapons.length > 0) {
-      // 1. Juiced Weapon Switch Swoosh Ring & Dynamic Vapor Trails
-      if (char.weaponSwitchTimer && char.weaponSwitchTimer > 0) {
-        const switchDuration = char.weaponSwitchDuration || 0.32;
-        const progress = 1.0 - Math.max(0, Math.min(1, char.weaponSwitchTimer / switchDuration)); // 0 to 1
-        
-        ctx.save();
-        // Inner spinning loading neon dash
-        ctx.strokeStyle = `rgba(56, 189, 248, ${0.9 * (1 - progress)})`; // Cool Cyan
-        ctx.lineWidth = 4 * (1 - progress);
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.arc(10, 0, 15 + progress * 28, -Math.PI / 3, -Math.PI / 3 + progress * Math.PI * 1.8);
-        ctx.stroke();
-
-        // Expanding vapor puff ring
-        ctx.strokeStyle = `rgba(147, 197, 253, ${0.5 * (1 - progress)})`; // Pastel Blue
-        ctx.lineWidth = 2 * (1 - progress);
-        ctx.beginPath();
-        ctx.arc(10, 0, 8 + progress * 38, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      const skinId = char.isPlayer ? settingsManager.getSettings().weaponSkins?.[currWeapon] : undefined;
-      this.renderWeaponSprite(ctx, currWeapon, weaponScale, skinId);
-
-      // 3D Holographic Reload Progress Ring floating over receiver
-      if (char.isReloading) {
-        ctx.save();
-        ctx.translate(10, 0);
-        ctx.rotate(-baseGunAngle - totalSwayTilt); // keeps ring upright facing camera
-        
-        // Outer translucent ring
-        ctx.strokeStyle = 'rgba(6, 182, 212, 0.3)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(0, -18, 14, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Active cyan progress arc
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(0, -18, 14, -Math.PI / 2, -Math.PI / 2 + reloadProgressRatio * Math.PI * 2);
-        ctx.stroke();
-
-        // Percentage text
-        ctx.font = '900 8px Chakra Petch, monospace';
-        ctx.fillStyle = '#e0f2fe';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${Math.floor(reloadProgressRatio * 100)}%`, 0, -18);
-        ctx.restore();
-      }
-
-      // Dynamic Disembodied Hands with gripping fingers
-      ctx.fillStyle = char.skinTone || '#fbb587';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.4;
-
-      // Back Hand (Grip hand with thumb contour)
-      ctx.beginPath();
-      ctx.ellipse(3, 2, 5, 4, 0.1, 0, Math.PI * 2);
-      ctx.fill(); ctx.stroke();
-      // Thumb fold
-      ctx.fillStyle = '#ea9c6d';
-      ctx.beginPath();
-      ctx.arc(4, 0, 1.8, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Front Support Hand positioned per weapon archetype with kinetic reload slide offset
-      ctx.fillStyle = char.skinTone || '#fbb587';
-      let frontHandX = 12;
-      if (currWeapon === 'sniper') frontHandX = 26;
-      else if (currWeapon === 'rifle') frontHandX = 18;
-      else if (currWeapon === 'shotgun') frontHandX = 19;
-      else if (currWeapon === 'rocket') frontHandX = 15;
-      else if (currWeapon === 'pistol') frontHandX = 5; // close dual grip on magnum
-
-      const actualFrontHandX = frontHandX + reloadHandSlideX;
-      const actualFrontHandY = 2 + reloadHandSlideY;
-
-      ctx.beginPath();
-      ctx.ellipse(actualFrontHandX, actualFrontHandY, 5, 4, isSlideRacking ? -0.3 : -0.1, 0, Math.PI * 2);
-      ctx.fill(); ctx.stroke();
-      // Front hand thumb
-      ctx.fillStyle = '#ea9c6d';
-      ctx.beginPath();
-      ctx.arc(actualFrontHandX + 1, actualFrontHandY - 2, 1.8, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      // UNARMED / FISTS MODE (Brawler Stance)
-      ctx.fillStyle = char.skinTone || '#fbb587';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.6;
-      // Left Guard Fist
-      ctx.beginPath();
-      ctx.ellipse(8, -4, 6, 5, 0.2, 0, Math.PI * 2);
-      ctx.fill(); ctx.stroke();
-      // Right Lead Fist
-      ctx.beginPath();
-      ctx.ellipse(16, 2, 6.5, 5.5, -0.1, 0, Math.PI * 2);
-      ctx.fill(); ctx.stroke();
-      // Knuckle creases
-      ctx.fillStyle = '#ea9c6d';
-      ctx.fillRect(17, 0, 3, 4);
-    }
-
-    // Muzzle Flash with dynamic radial flare
-    if (char.muzzleFlashTimer > 0) {
-      const cfg = WEAPON_CONFIGS[currWeapon];
-      const barrelLen = (cfg?.barrelLength || 28) * weaponScale;
-      
-      // Star flare
-      ctx.fillStyle = '#fef08a';
-      ctx.beginPath();
-      ctx.arc(barrelLen + 8, 0, 14, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(barrelLen + 8, 0, 6, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Flame spikes
-      ctx.strokeStyle = '#f97316';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(barrelLen + 2, -10); ctx.lineTo(barrelLen + 20, 0); ctx.lineTo(barrelLen + 2, 10);
-      ctx.stroke();
-    }
-
-    // Melee Punch Effect
-    if (char.meleeTimer && char.meleeTimer > 0) {
-      const punchProg = Math.sin((char.meleeTimer / 0.28) * Math.PI);
-      const punchDist = punchProg * 38;
-      ctx.fillStyle = char.skinTone || '#fbb587';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2.6;
-      ctx.beginPath();
-      ctx.ellipse(punchDist + 16, 0, 8, 6.5, 0, 0, Math.PI * 2);
-      ctx.fill(); ctx.stroke();
-      // Knuckle lines
-      ctx.strokeStyle = '#9a3412';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(punchDist + 18, -3); ctx.lineTo(punchDist + 18, 3);
-      ctx.moveTo(punchDist + 21, -2); ctx.lineTo(punchDist + 21, 2);
-      ctx.stroke();
-    }
-
-    // 3D Holographic Diegetic HUD Floating over Weapon (Ammo, Chamber Diagnostics, Hologram Matrix)
-    if (char.isPlayer && char.weapons.length > 0 && settingsManager.getSettings().holographicHUD !== false) {
-      this.render3DHolographicWeaponHUD(ctx, char, currWeapon as WeaponType, weaponScale, isFacingRight);
-    }
-
+    // Restore character body transform
     ctx.restore();
-
-    // 3D Holographic Bio-HUD Floating around Soldier (Curved Health Arc, Shield, Jetpack Fuel Arc, ECG Wave)
-    if (char.isPlayer && settingsManager.getSettings().holographicHUD !== false) {
-      this.render3DHolographicSoldierHUD(ctx, char, currWeapon as WeaponType, isFacingRight, crouchShift);
-    }
-
-    ctx.restore(); // restore facing multiplier
     
-    // Player Tag & Overhead Health Bar (Zoom-independent & Perfectly Stable/Crisp to avoid subpixel jitter)
+    // Player Tag & Overhead Health Bar (Zoom-independent & Perfectly Stable/Crisp)
     ctx.save();
     const currentZoom = this.camera.zoom || 1.0;
-    // Translate using perfectly rounded integers to avoid subpixel rendering jitter (names shaking)
-    ctx.translate(Math.round(centerX), Math.round(char.y - 12));
+    // Translate in world space relative to character top center
+    ctx.translate(Math.round(char.x + char.width / 2), Math.round(char.y - 12));
     ctx.scale(1 / currentZoom, 1 / currentZoom);
 
     if (char.inBush) {
@@ -3109,34 +2384,60 @@ export class GameRenderer {
     ctx.lineWidth = 1.5;
     ctx.strokeRect(-barW / 2, -4, barW, barH);
 
-    // Overhead Tactical Reload Progress Ring
+    // Overhead Jetpack Fuel Gauge (reveals itself dynamically when fuel is consumed)
+    if (char.fuel < (char.maxFuel || 100)) {
+      const fBarW = 44;
+      const fBarH = 4;
+      const fBarY = 4; // Positioned immediately below the health bar (which spans y=-4 to y=2)
+      
+      // Draw background track
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+      ctx.fillRect(-fBarW / 2, fBarY, fBarW, fBarH);
+      
+      const fuelPct = Math.max(0, Math.min(1, char.fuel / (char.maxFuel || 100)));
+      // Dynamic color theme: Red on depletion lock, Warning Amber on low fuel, Neon Cyan on active charge
+      const fuelColor = char.isFuelDepleted ? '#ef4444' : (fuelPct < 0.3 ? '#f59e0b' : '#06b6d4');
+      ctx.fillStyle = fuelColor;
+      ctx.fillRect(-fBarW / 2, fBarY, fBarW * fuelPct, fBarH);
+      
+      // Draw border
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(-fBarW / 2, fBarY, fBarW, fBarH);
+    }
+
+    // Overhead Tactical Reload Progress Bar (Gives outstanding combat feedback)
     if (char.isReloading) {
       const reloadProg = Math.max(0, Math.min(1, 1 - (char.reloadTimer / (char.reloadDuration || 1))));
       ctx.save();
-      ctx.translate(barW / 2 + 10, -1);
+      ctx.translate(0, -22); // Positioned high above health bar
+
+      const rBarW = 54;
+      const rBarH = 6;
       
-      // Backdrop ring
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(0, 0, 7, 0, Math.PI * 2);
-      ctx.stroke();
+      // Draw background track
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.fillRect(-rBarW / 2, -rBarH / 2, rBarW, rBarH);
+      
+      // Draw smooth progress fill
+      const reloadColor = reloadProg > 0.85 ? '#22c55e' : '#facc15';
+      ctx.fillStyle = reloadColor;
+      ctx.fillRect(-rBarW / 2, -rBarH / 2, rBarW * reloadProg, rBarH);
+      
+      // Draw border
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(-rBarW / 2, -rBarH / 2, rBarW, rBarH);
 
-      // Active reload progress arc
-      const reloadColor = reloadProg > 0.8 ? '#4ade80' : '#facc15';
-      ctx.strokeStyle = reloadColor;
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.arc(0, 0, 7, -Math.PI / 2, -Math.PI / 2 + reloadProg * Math.PI * 2);
-      ctx.stroke();
-
-      // Spinning indicator
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 7px sans-serif';
+      // Draw pulsing Arabic reloading text overlay
+      ctx.font = '900 8px Cairo, Arial, sans-serif';
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('🔄', 0, 0);
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2.8;
+      ctx.strokeText('🔄 تلقيم...', 0, -8);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('🔄 تلقيم...', 0, -8);
+
       ctx.restore();
     }
 
@@ -3804,54 +3105,57 @@ export class GameRenderer {
     }
 
     // 2. Draw Physical Hanging Lamp Fixtures
-    for (const lamp of lamps) {
-      if (
-        lamp.x < minX ||
-        lamp.x > maxX ||
-        lamp.y < minY ||
-        lamp.y > maxY
-      ) {
-        continue;
+    if (lamps) {
+      for (const lamp of lamps) {
+        if (
+          lamp.x < minX ||
+          lamp.x > maxX ||
+          lamp.y < minY ||
+          lamp.y > maxY
+        ) {
+          continue;
+        }
+
+        // Ceiling anchor
+        ctx.fillStyle = '#1c1917';
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.fillRect(lamp.x - 8, lamp.y - 35, 16, 6);
+        ctx.strokeRect(lamp.x - 8, lamp.y - 35, 16, 6);
+
+        // Hanging electrical cord / chain
+        ctx.beginPath();
+        ctx.moveTo(lamp.x, lamp.y - 29);
+        ctx.lineTo(lamp.x, lamp.y - 10);
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#000000';
+        ctx.stroke();
+
+        // Metallic Lamp Dome Shade (Military style)
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.moveTo(lamp.x - 16, lamp.y - 10);
+        ctx.lineTo(lamp.x + 16, lamp.y - 10);
+        ctx.lineTo(lamp.x + 22, lamp.y - 2);
+        ctx.lineTo(lamp.x - 22, lamp.y - 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Glowing Bulb Core with rapid dynamic flicker
+        const flicker = 0.8 + 0.2 * Math.sin(this.animTime * 16 + lamp.x * 0.2) * (Math.sin(this.animTime * 42) > 0.88 ? 0.25 : 1.0);
+        ctx.fillStyle = this.fcnGlowColor(lamp.color, flicker);
+        ctx.beginPath();
+        ctx.arc(lamp.x, lamp.y - 2, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
       }
-
-      // Ceiling anchor
-      ctx.fillStyle = '#1c1917';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2;
-      ctx.fillRect(lamp.x - 8, lamp.y - 35, 16, 6);
-      ctx.strokeRect(lamp.x - 8, lamp.y - 35, 16, 6);
-
-      // Hanging electrical cord / chain
-      ctx.beginPath();
-      ctx.moveTo(lamp.x, lamp.y - 29);
-      ctx.lineTo(lamp.x, lamp.y - 10);
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = '#000000';
-      ctx.stroke();
-
-      // Metallic Lamp Dome Shade (Military style)
-      ctx.fillStyle = '#334155';
-      ctx.beginPath();
-      ctx.moveTo(lamp.x - 16, lamp.y - 10);
-      ctx.lineTo(lamp.x + 16, lamp.y - 10);
-      ctx.lineTo(lamp.x + 22, lamp.y - 2);
-      ctx.lineTo(lamp.x - 22, lamp.y - 2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Glowing Bulb Core with rapid dynamic flicker
-      const flicker = 0.8 + 0.2 * Math.sin(this.animTime * 16 + lamp.x * 0.2) * (Math.sin(this.animTime * 42) > 0.88 ? 0.25 : 1.0);
-      ctx.fillStyle = this.fcnGlowColor(lamp.color, flicker);
-      ctx.beginPath();
-      ctx.arc(lamp.x, lamp.y - 2, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
     }
 
     // 3. Draw Volumetric Flickering Light Cones and Spotlights (Screen composite operation)
     ctx.globalCompositeOperation = 'screen';
-    for (const lamp of lamps) {
+    if (lamps) {
+      for (const lamp of lamps) {
       if (
         lamp.x < minX ||
         lamp.x > maxX ||
@@ -3903,6 +3207,7 @@ export class GameRenderer {
           ctx.fill();
         }
       }
+    }
     }
 
     // Volumetric Glow for Directional Guide Markers

@@ -191,8 +191,15 @@ export const missionsManager = {
     return { updatedState, newlyCompletedMissions: newlyCompleted };
   },
 
-  claimReward(missionId: string): { state: DailyMissionsState; xpEarned: number } {
+  claimReward(missionId: string): { state: DailyMissionsState; xpEarned: number; success: boolean } {
     const current = this.getMissions();
+    const target = current.missions.find((m) => m.id === missionId);
+
+    // Strict validation: Reward CANNOT be claimed unless the player actually completed the mission
+    if (!target || !target.isCompleted || target.isClaimed) {
+      return { state: current, xpEarned: 0, success: false };
+    }
+
     let xpEarned = 0;
 
     const updatedMissions = current.missions.map((m) => {
@@ -209,6 +216,6 @@ export const missionsManager = {
     };
 
     this.saveMissions(updatedState);
-    return { state: updatedState, xpEarned };
+    return { state: updatedState, xpEarned, success: true };
   },
 };

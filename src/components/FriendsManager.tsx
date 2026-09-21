@@ -234,7 +234,7 @@ export const FriendsManager: React.FC<FriendsManagerProps> = ({
                         <h4 className="text-xs font-black text-white">{user.displayName}</h4>
                         <span className="text-[10px] text-neutral-400 block font-mono">
                           {(() => {
-                            const userStats = user.stats || { totalKills: 0, totalHeadshots: 0, totalWins: 0, totalMatches: 0, totalDeaths: 0, longestKillStreak: 0, totalDamageDealt: 0, highestSurvivalWave: 1, matchHistory: [], coins: 100 };
+                            const userStats = user.stats || { totalKills: 0, totalHeadshots: 0, totalWins: 0, totalMatches: 0, totalDeaths: 0, longestKillStreak: 0, totalDamageDealt: 0, highestSurvivalWave: 1, matchHistory: [], coins: 100, bestKills: 0, bestMatchTimeSeconds: 0, bestAccuracy: 0 };
                             const xpInfo = statsManager.getXPInfo(userStats);
                             const userRank = statsManager.getRank(xpInfo.totalXP, userStats.totalMatches);
                             return `${userRank.titleAr} ${userRank.badge} • مستوى ${xpInfo.level}`;
@@ -339,7 +339,7 @@ export const FriendsManager: React.FC<FriendsManagerProps> = ({
 
                         <div className="flex items-center gap-2 text-[10px] text-neutral-400 font-mono mt-0.5">
                           {(() => {
-                            const friendStats = friend.stats || { totalKills: 0, totalHeadshots: 0, totalWins: 0, totalMatches: 0, totalDeaths: 0, longestKillStreak: 0, totalDamageDealt: 0, highestSurvivalWave: 1, matchHistory: [], coins: 100 };
+                            const friendStats = friend.stats || { totalKills: 0, totalHeadshots: 0, totalWins: 0, totalMatches: 0, totalDeaths: 0, longestKillStreak: 0, totalDamageDealt: 0, highestSurvivalWave: 1, matchHistory: [], coins: 100, bestKills: 0, bestMatchTimeSeconds: 0, bestAccuracy: 0 };
                             const xpInfo = statsManager.getXPInfo(friendStats);
                             const friendRank = statsManager.getRank(xpInfo.totalXP, friendStats.totalMatches);
                             return (

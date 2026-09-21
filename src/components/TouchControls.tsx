@@ -1,22 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Crosshair, RotateCcw, ArrowRightLeft, Bomb, ArrowDownToLine, Flame, Zap, SlidersHorizontal, Move, ChevronRight } from 'lucide-react';
-import { DndContext, PointerSensor, useSensor, useSensors, useDraggable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
+import { Crosshair, RotateCcw, Bomb, ArrowDownToLine, Flame, ChevronRight } from 'lucide-react';
 import { GameEngine } from '../game/gameEngine';
 import { soundManager } from '../audio/soundManager';
-import { settingsManager } from '../utils/settingsManager';
-
-const DraggableButton = ({ id, children, style }: any) => {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id });
-  const dndStyle = {
-    transform: CSS.Translate.toString(transform),
-  };
-  return (
-    <div ref={setNodeRef} style={{ ...style, ...dndStyle }} {...listeners} {...attributes} className="cursor-move z-50">
-      {children}
-    </div>
-  );
-};
 
 interface TouchControlsProps {
   engine: GameEngine | null;
@@ -24,26 +9,19 @@ interface TouchControlsProps {
   grenadesCount: number;
 }
 
-export const TouchControls: React.FC<TouchControlsProps> = ({
+export const TouchControls: React.FC<TouchControlsProps> = React.memo(({
   engine,
   onPause,
   grenadesCount,
 }) => {
-  const leftZoneRef = useRef<HTMLDivElement>(null);
-  const rightZoneRef = useRef<HTMLDivElement>(null);
-
   // Left Joystick visual state
   const [leftActive, setLeftActive] = useState(false);
-  const [leftOrigin, setLeftOrigin] = useState({ x: 0, y: 0 });
-  const [leftThumb, setLeftThumb] = useState({ x: 0, y: 0 });
 
   // Right Joystick visual state
   const [rightActive, setRightActive] = useState(false);
-  const [rightOrigin, setRightOrigin] = useState({ x: 0, y: 0 });
-  const [rightThumb, setRightThumb] = useState({ x: 0, y: 0 });
 
   // Auto-Fire / Manual-Fire toggle state (default: Auto-Fire enabled)
-  const [autoFire, setAutoFire] = useState(true);
+  const [autoFire] = useState(true);
   const [shootPressed, setShootPressed] = useState(false);
 
   // Scope Zoom Level state (1 = 1x, 2 = 2x, 3 = 3x)
@@ -51,7 +29,6 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
   // Tactile button states
   const [meleePressed, setMeleePressed] = useState(false);
-  const [controlLayout, setControlLayout] = useState(settingsManager.getSettings().controlLayout);
   const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
 
   useEffect(() => {
@@ -66,33 +43,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     };
   }, []);
 
-  const sensors = useSensors(useSensor(PointerSensor));
-
-  useEffect(() => {
-    return settingsManager.subscribe((settings) => {
-      setControlLayout(settings.controlLayout);
-    });
-  }, []);
-
-  const handleDragEnd = (event: any) => {
-    const { delta, active } = event;
-    const btn = active.id as 'grenadeBtn' | 'meleeBtn' | 'shootBtn';
-    
-    setControlLayout(prev => {
-      const newLayout = {
-        ...prev,
-        [btn]: {
-          ...prev[btn],
-          bottom: prev[btn].bottom - delta.y,
-          [btn === 'grenadeBtn' ? 'left' : 'right']: prev[btn][btn === 'grenadeBtn' ? 'left' : 'right'] - delta.x
-        }
-      };
-      settingsManager.updateSettings({ ...settingsManager.getSettings(), controlLayout: newLayout });
-      return newLayout;
-    });
-  };
-
-  const maxRadius = 55;
+  const maxRadius = 52;
 
   const handleToggleScope = () => {
     if (engine) {
@@ -104,207 +55,170 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     }
   };
 
+  // Fixed DOM Element Refs for accurate screen centering and direct transform
+  const leftBaseElementRef = useRef<HTMLDivElement | null>(null);
+  const rightBaseElementRef = useRef<HTMLDivElement | null>(null);
+  const leftThumbElementRef = useRef<HTMLDivElement | null>(null);
+  const rightThumbElementRef = useRef<HTMLDivElement | null>(null);
+
   // Refs for tracking touch identifiers and active touch state
   const leftTouchIdRef = useRef<number | null>(null);
   const rightTouchIdRef = useRef<number | null>(null);
-  const isTouchActiveRef = useRef<boolean>(false);
+  const isUsingTouchRef = useRef<boolean>(false);
 
-  // Left joystick touch handling (Move & Jetpack - Fixed Joystick)
-  const handleLeftStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!leftZoneRef.current) return;
-    
-    if ('touches' in e && e.changedTouches.length > 0) {
-      let matchedTouch = null;
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].clientX < window.innerWidth / 2) {
-          matchedTouch = e.changedTouches[i];
-          break;
-        }
-      }
-      if (!matchedTouch) return; // Strict: ignore if not on left side
-      leftTouchIdRef.current = matchedTouch.identifier;
+  const getLeftBaseCenter = useCallback(() => {
+    if (leftBaseElementRef.current) {
+      const rect = leftBaseElementRef.current.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     }
-
-    const rect = leftZoneRef.current.getBoundingClientRect();
-    setLeftActive(true);
-    setLeftOrigin({ x: 80, y: rect.height - 80 });
-    setLeftThumb({ x: 0, y: 0 });
-    engine?.setMoveInput(0, 0);
-  }, [engine]);
-
-  const handleLeftMove = useCallback((e: React.TouchEvent | React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!leftActive || !leftZoneRef.current) return;
-    const rect = leftZoneRef.current.getBoundingClientRect();
-
-    let clientX = 0;
-    let clientY = 0;
-
-    if ('touches' in e) {
-      let found = false;
-      const touches = e.targetTouches; // Only touches on this element!
-      if (leftTouchIdRef.current !== null) {
-        for (let i = 0; i < touches.length; i++) {
-          if (touches[i].identifier === leftTouchIdRef.current) {
-            clientX = touches[i].clientX;
-            clientY = touches[i].clientY;
-            found = true;
-            break;
-          }
-        }
-      }
-      if (!found && touches.length > 0) {
-        clientX = touches[0].clientX;
-        clientY = touches[0].clientY;
-      } else if (!found) {
-        return; // No matching touch in left zone
-      }
-    } else {
-      clientX = (e as React.MouseEvent).clientX;
-      clientY = (e as React.MouseEvent).clientY;
-    }
-
-    const centerX = rect.left + 80;
-    const centerY = rect.bottom - 80;
-
-    let dx = clientX - centerX;
-    let dy = clientY - centerY;
-    const dist = Math.hypot(dx, dy);
-
-    if (dist > maxRadius) {
-      dx = (dx / dist) * maxRadius;
-      dy = (dy / dist) * maxRadius;
-    }
-
-    setLeftThumb({ x: dx, y: dy });
-
-    const normX = dx / maxRadius;
-    const normY = dy / maxRadius;
-    engine?.setMoveInput(normX, normY);
-    engine?.setJetpack(normY < -0.15);
-  }, [leftActive, engine]);
-
-  const handleLeftEnd = useCallback((e?: React.TouchEvent | React.MouseEvent) => {
-    if ('touches' in (e || {}) && leftTouchIdRef.current !== null) {
-      const changed = (e as React.TouchEvent).changedTouches;
-      let ended = false;
-      for (let i = 0; i < changed.length; i++) {
-        if (changed[i].identifier === leftTouchIdRef.current) {
-          ended = true;
-          break;
-        }
-      }
-      if (!ended) return; 
-    }
-
-    leftTouchIdRef.current = null;
-    setLeftActive(false);
-    setLeftThumb({ x: 0, y: 0 });
-    engine?.setMoveInput(0, 0);
-    engine?.setJetpack(false);
-  }, [engine]);
-
-  // Right joystick touch handling (Aiming - Fixed Joystick)
-  const handleRightStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!rightZoneRef.current) return;
-
-    if ('touches' in e && e.changedTouches.length > 0) {
-      let matchedTouch = null;
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].clientX >= window.innerWidth / 2) {
-          matchedTouch = e.changedTouches[i];
-          break;
-        }
-      }
-      if (!matchedTouch) return; // Strict: ignore if not on right side
-      rightTouchIdRef.current = matchedTouch.identifier;
-    }
-
-    const rect = rightZoneRef.current.getBoundingClientRect();
-    setRightActive(true);
-    setRightOrigin({ x: rect.width - 140, y: rect.height - 80 });
-    setRightThumb({ x: 0, y: 0 });
+    return { x: 95, y: window.innerHeight - 88 };
   }, []);
 
-  const handleRightMove = useCallback((e: React.TouchEvent | React.MouseEvent) => {
-    e.preventDefault();
+  const getRightBaseCenter = useCallback(() => {
+    if (rightBaseElementRef.current) {
+      const rect = rightBaseElementRef.current.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }
+    return { x: window.innerWidth - 105, y: window.innerHeight - 88 };
+  }, []);
+
+  // Multi-Touch Event Manager Handlers for Static Fixed Joysticks (High-performance DOM transforms)
+  const handleUnifiedTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.cancelable) e.preventDefault();
     e.stopPropagation();
-    if (!rightActive || !rightZoneRef.current) return;
-    const rect = rightZoneRef.current.getBoundingClientRect();
+    isUsingTouchRef.current = true;
 
-    let clientX = 0;
-    let clientY = 0;
+    const midX = window.innerWidth / 2;
 
-    if ('touches' in e) {
-      let found = false;
-      const touches = e.targetTouches; // Only touches on this element!
-      if (rightTouchIdRef.current !== null) {
-        for (let i = 0; i < touches.length; i++) {
-          if (touches[i].identifier === rightTouchIdRef.current) {
-            clientX = touches[i].clientX;
-            clientY = touches[i].clientY;
-            found = true;
-            break;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      // Left half -> Fixed Movement Joystick
+      if (touch.clientX < midX) {
+        if (leftTouchIdRef.current === null) {
+          leftTouchIdRef.current = touch.identifier;
+          setLeftActive(true);
+          const center = getLeftBaseCenter();
+          let dx = touch.clientX - center.x;
+          let dy = touch.clientY - center.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > maxRadius) {
+            dx = (dx / dist) * maxRadius;
+            dy = (dy / dist) * maxRadius;
+          }
+          if (leftThumbElementRef.current) {
+            leftThumbElementRef.current.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+          }
+          const normX = dx / maxRadius;
+          const normY = dy / maxRadius;
+          engine?.setMoveInput(normX, normY);
+          engine?.setJetpack(normY < -0.15);
+        }
+      }
+      // Right half -> Fixed Aiming/Firing Joystick
+      else {
+        if (rightTouchIdRef.current === null) {
+          rightTouchIdRef.current = touch.identifier;
+          setRightActive(true);
+          const center = getRightBaseCenter();
+          let dx = touch.clientX - center.x;
+          let dy = touch.clientY - center.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > maxRadius) {
+            dx = (dx / dist) * maxRadius;
+            dy = (dy / dist) * maxRadius;
+          }
+          if (rightThumbElementRef.current) {
+            rightThumbElementRef.current.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+          }
+          if (dist > 5) {
+            const normX = dx / maxRadius;
+            const normY = dy / maxRadius;
+            engine?.setAimInput(normX, normY, autoFire);
           }
         }
       }
-      if (!found && touches.length > 0) {
-        clientX = touches[0].clientX;
-        clientY = touches[0].clientY;
-      } else if (!found) {
-        return; // No matching touch in right zone
+    }
+  }, [engine, getLeftBaseCenter, getRightBaseCenter, autoFire]);
+
+  const handleUnifiedTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.cancelable) e.preventDefault();
+    e.stopPropagation();
+
+    for (let i = 0; i < e.touches.length; i++) {
+      const touch = e.touches[i];
+
+      if (touch.identifier === leftTouchIdRef.current) {
+        const center = getLeftBaseCenter();
+        let dx = touch.clientX - center.x;
+        let dy = touch.clientY - center.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > maxRadius) {
+          dx = (dx / dist) * maxRadius;
+          dy = (dy / dist) * maxRadius;
+        }
+
+        if (leftThumbElementRef.current) {
+          leftThumbElementRef.current.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+        }
+
+        const normX = dx / maxRadius;
+        const normY = dy / maxRadius;
+        engine?.setMoveInput(normX, normY);
+        engine?.setJetpack(normY < -0.15);
       }
-    } else {
-      clientX = (e as React.MouseEvent).clientX;
-      clientY = (e as React.MouseEvent).clientY;
-    }
+      else if (touch.identifier === rightTouchIdRef.current) {
+        const center = getRightBaseCenter();
+        let dx = touch.clientX - center.x;
+        let dy = touch.clientY - center.y;
+        const dist = Math.hypot(dx, dy);
 
-    const centerX = rect.right - 140;
-    const centerY = rect.bottom - 80;
+        if (dist > maxRadius) {
+          dx = (dx / dist) * maxRadius;
+          dy = (dy / dist) * maxRadius;
+        }
 
-    let dx = clientX - centerX;
-    let dy = clientY - centerY;
-    const dist = Math.hypot(dx, dy);
+        if (rightThumbElementRef.current) {
+          rightThumbElementRef.current.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+        }
 
-    if (dist > maxRadius) {
-      dx = (dx / dist) * maxRadius;
-      dy = (dy / dist) * maxRadius;
-    }
-
-    setRightThumb({ x: dx, y: dy });
-
-    if (dist > 10) {
-      const normX = dx / maxRadius;
-      const normY = dy / maxRadius;
-      engine?.setAimInput(normX, normY, autoFire);
-    }
-  }, [rightActive, autoFire, engine]);
-
-  const handleRightEnd = useCallback((e?: React.TouchEvent | React.MouseEvent) => {
-    if ('touches' in (e || {}) && rightTouchIdRef.current !== null) {
-      const changed = (e as React.TouchEvent).changedTouches;
-      let ended = false;
-      for (let i = 0; i < changed.length; i++) {
-        if (changed[i].identifier === rightTouchIdRef.current) {
-          ended = true;
-          break;
+        if (dist > 5) {
+          const normX = dx / maxRadius;
+          const normY = dy / maxRadius;
+          engine?.setAimInput(normX, normY, autoFire);
         }
       }
-      if (!ended) return;
     }
+  }, [engine, getLeftBaseCenter, getRightBaseCenter, autoFire]);
 
-    rightTouchIdRef.current = null;
-    setRightActive(false);
-    setRightThumb({ x: 0, y: 0 });
-    if (autoFire && !shootPressed) {
-      engine?.setShoot(false);
+  const handleUnifiedTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (e.cancelable) e.preventDefault();
+    e.stopPropagation();
+
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+
+      if (touch.identifier === leftTouchIdRef.current) {
+        leftTouchIdRef.current = null;
+        setLeftActive(false);
+        if (leftThumbElementRef.current) {
+          leftThumbElementRef.current.style.transform = 'translate3d(0px, 0px, 0)';
+        }
+        engine?.setMoveInput(0, 0);
+        engine?.setJetpack(false);
+      }
+      else if (touch.identifier === rightTouchIdRef.current) {
+        rightTouchIdRef.current = null;
+        setRightActive(false);
+        if (rightThumbElementRef.current) {
+          rightThumbElementRef.current.style.transform = 'translate3d(0px, 0px, 0)';
+        }
+        if (autoFire && !shootPressed) {
+          engine?.setShoot(false);
+        }
+      }
     }
-  }, [autoFire, shootPressed, engine]);
+  }, [engine, autoFire, shootPressed]);
 
   // Dedicated Shoot Button Handlers (Manual Shooting)
   const handleShootStart = (e: React.SyntheticEvent) => {
@@ -366,6 +280,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     };
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (isUsingTouchRef.current) return;
       if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
       if (!engine) return;
       const target = e.target as HTMLElement;
@@ -386,6 +301,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     };
 
     const handleMouseDown = (e: MouseEvent) => {
+      if (isUsingTouchRef.current) return;
       if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
       const target = e.target as HTMLElement;
       if (target && target.closest('button, [role="button"], input, a, #zone-movement, #zone-aim')) {
@@ -399,6 +315,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     };
 
     const handleMouseUp = (e: MouseEvent) => {
+      if (isUsingTouchRef.current) return;
       if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
       if (e.button === 0) engine?.setShoot(false);
       if (e.button === 2) {
@@ -450,7 +367,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         </div>
       )}
 
-      {/* TOP LEFT SCOPE ZOOM BUTTON (EXACT MATCH WITH SCREENSHOT [1x]) */}
+      {/* TOP LEFT SCOPE ZOOM BUTTON */}
       <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-auto z-50">
         <button
           onClick={handleToggleScope}
@@ -461,97 +378,79 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         </button>
       </div>
 
-      {/* MULTI-TOUCH ZONE MANAGER: 50/50 SPLIT WITH CENTER DEAD ZONE */}
-      <div className="absolute inset-0 flex pointer-events-none">
-        {/* LEFT TOUCH ZONE: MOVEMENT & JETPACK (48% SCREEN) */}
+      {/* UNIFIED MULTI-TOUCH EVENT MANAGER OVERLAY FOR FIXED JOYSTICKS */}
+      <div
+        id="unified-touch-overlay"
+        className="absolute bottom-0 left-0 right-0 h-[65%] pointer-events-auto touch-none z-10"
+        onTouchStart={handleUnifiedTouchStart}
+        onTouchMove={handleUnifiedTouchMove}
+        onTouchEnd={handleUnifiedTouchEnd}
+        onTouchCancel={handleUnifiedTouchEnd}
+      >
+        {/* Left Joystick - 100% Fixed Position Movement Control */}
         <div
-          id="zone-movement"
-          ref={leftZoneRef}
-          className="w-[48vw] h-full pointer-events-auto touch-none"
-          onTouchStart={handleLeftStart}
-          onTouchMove={handleLeftMove}
-          onTouchEnd={handleLeftEnd}
-          onTouchCancel={handleLeftEnd}
-          onMouseDown={handleLeftStart}
-          onMouseMove={handleLeftMove}
-          onMouseUp={handleLeftEnd}
+          ref={leftBaseElementRef}
+          className="absolute pointer-events-none z-40 transition-opacity duration-150"
+          style={{
+            left: '45px',
+            bottom: '40px',
+            opacity: leftActive ? 1.0 : 0.8,
+          }}
         >
-          {/* Left Joystick Fixed Visual Indicator */}
-          <div
-            className="absolute transition-opacity duration-200 pointer-events-none"
-            style={{
-              left: '80px',
-              bottom: '50px',
-              opacity: leftActive ? 0.95 : 0.45,
-            }}
-          >
-            {/* Base Ring (Vibrant Translucent Blue) */}
-            <div className={`w-24 h-24 rounded-full border-3 transition-colors ${leftActive ? 'border-cyan-400 bg-cyan-950/40 shadow-[0_0_15px_rgba(34,211,238,0.4)]' : 'border-cyan-400/80 bg-cyan-950/25'} backdrop-blur-md flex items-center justify-center shadow-lg`}>
-              <div className="w-14 h-14 rounded-full border border-cyan-400/30" />
-              <div
-                className="absolute w-12 h-12 rounded-full bg-cyan-500/40 border-2 border-cyan-200 shadow-md flex items-center justify-center transition-transform duration-75"
-                style={{
-                  transform: `translate(${leftThumb.x}px, ${leftThumb.y}px)`,
-                }}
-              >
-                <div className="w-5 h-5 rounded-full bg-white/70" />
-              </div>
+          {/* Base Ring (Vibrant Translucent Blue) */}
+          <div className={`w-24 h-24 rounded-full border-3 transition-all duration-150 ${leftActive ? 'border-cyan-300 bg-cyan-950/60 shadow-[0_0_25px_rgba(34,211,238,0.7)] scale-105' : 'border-cyan-400/80 bg-cyan-950/40 shadow-md'} backdrop-blur-md flex items-center justify-center`}>
+            <div className={`w-14 h-14 rounded-full border transition-colors duration-150 ${leftActive ? 'border-cyan-300/60' : 'border-cyan-400/30'}`} />
+            <div
+              ref={leftThumbElementRef}
+              className={`absolute w-12 h-12 rounded-full border-2 shadow-md flex items-center justify-center will-change-transform ${
+                leftActive 
+                  ? 'bg-cyan-400/80 border-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.8)] scale-110' 
+                  : 'bg-cyan-500/50 border-cyan-200'
+              }`}
+            >
+              <div className={`w-5 h-5 rounded-full transition-all duration-150 ${leftActive ? 'bg-cyan-100 shadow-[0_0_8px_white]' : 'bg-white/70'}`} />
             </div>
           </div>
         </div>
 
-        {/* CENTER DEAD ZONE (4% SCREEN) - PREVENTS CROSS-TALK */}
-        <div className="w-[4vw] h-full pointer-events-none border-x border-white/5 bg-white/2" />
-
-        {/* RIGHT TOUCH ZONE: AIM & ROTATION (48% SCREEN) */}
+        {/* Right Joystick - 100% Fixed Position Aiming/Firing Control */}
         <div
-          id="zone-aim"
-          ref={rightZoneRef}
-          className="w-[48vw] h-full pointer-events-auto touch-none"
-          onTouchStart={handleRightStart}
-          onTouchMove={handleRightMove}
-          onTouchEnd={handleRightEnd}
-          onTouchCancel={handleRightEnd}
-          onMouseDown={handleRightStart}
-          onMouseMove={handleRightMove}
-          onMouseUp={handleRightEnd}
+          ref={rightBaseElementRef}
+          className="absolute pointer-events-none z-40 transition-opacity duration-150"
+          style={{
+            right: '55px',
+            bottom: '40px',
+            opacity: rightActive ? 1.0 : 0.8,
+          }}
         >
-          {/* Right Joystick Fixed Visual Indicator */}
-          <div
-            className="absolute transition-opacity duration-200 pointer-events-none"
-            style={{
-              right: '130px',
-              bottom: '50px',
-              opacity: rightActive ? 0.95 : 0.45,
-            }}
-          >
-            {/* Base Ring (Vibrant Translucent Red) */}
-            <div className={`w-24 h-24 rounded-full border-3 transition-colors ${rightActive ? 'border-rose-500 bg-rose-950/40 shadow-[0_0_15px_rgba(244,63,94,0.4)]' : 'border-rose-500/80 bg-rose-950/25'} backdrop-blur-md flex items-center justify-center shadow-lg`}>
-              <div className="w-14 h-14 rounded-full border border-rose-500/30" />
-              <div
-                className="absolute w-12 h-12 rounded-full bg-red-600/45 border-2 border-red-300 shadow-md flex items-center justify-center transition-transform duration-75"
-                style={{
-                  transform: `translate(${rightThumb.x}px, ${rightThumb.y}px)`,
-                }}
-              >
-                <Crosshair className="w-6 h-6 text-white" />
-              </div>
+          {/* Base Ring (Vibrant Translucent Red) */}
+          <div className={`w-24 h-24 rounded-full border-3 transition-all duration-150 ${rightActive ? 'border-rose-400 bg-rose-950/60 shadow-[0_0_25px_rgba(244,63,94,0.7)] scale-105' : 'border-rose-500/80 bg-rose-950/40 shadow-md'} backdrop-blur-md flex items-center justify-center`}>
+            <div className={`w-14 h-14 rounded-full border transition-colors duration-150 ${rightActive ? 'border-rose-400/60' : 'border-rose-500/30'}`} />
+            <div
+              ref={rightThumbElementRef}
+              className={`absolute w-12 h-12 rounded-full border-2 shadow-md flex items-center justify-center will-change-transform ${
+                rightActive 
+                  ? 'bg-rose-500/80 border-rose-300 shadow-[0_0_20px_rgba(244,63,94,0.8)] scale-110' 
+                  : 'bg-red-600/50 border-red-300'
+              }`}
+            >
+              <Crosshair className={`w-6 h-6 transition-colors duration-150 ${rightActive ? 'text-rose-100 drop-shadow-[0_0_6px_rgba(255,255,255,0.9)]' : 'text-white'}`} />
             </div>
           </div>
         </div>
       </div>
       
-      {/* GRENADE BUTTON - POSITIONED ABOVE MOVEMENT JOYSTICK */}
+      {/* GRENADE BUTTON - FIXED DIRECTLY ABOVE LEFT JOYSTICK */}
       <div 
         className="absolute pointer-events-auto z-50"
-        style={{ bottom: `${controlLayout.grenadeBtn.bottom}px`, left: `${controlLayout.grenadeBtn.left}px` }}
+        style={{ bottom: '155px', left: '45px' }}
       >
         <button
           id="btn-grenade"
           disabled={grenadesCount <= 0}
           className={`w-11 h-11 rounded-full flex flex-col items-center justify-center border-2 border-white/80 shadow-lg backdrop-blur-md transition-transform active:scale-90 relative cursor-pointer ${
             grenadesCount > 0
-              ? 'bg-neutral-900/60 text-white hover:bg-neutral-900/80'
+              ? 'bg-neutral-900/70 text-white hover:bg-neutral-900/90'
               : 'bg-neutral-900/20 text-neutral-400 opacity-40 cursor-not-allowed'
           }`}
           onTouchStart={(e) => {
@@ -574,15 +473,41 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         </button>
       </div>
 
-      {/* MELEE PUNCH BUTTON - ADJACENT TO AIM JOYSTICK */}
+      {/* DROP WEAPON TOUCH BUTTON - FIXED DIRECTLY ABOVE GRENADE BUTTON */}
       <div 
         className="absolute pointer-events-auto z-50"
-        style={{ bottom: `${controlLayout.meleeBtn.bottom}px`, right: `${controlLayout.meleeBtn.right}px` }}
+        style={{ bottom: '215px', left: '45px' }}
+      >
+        <button
+          id="btn-touch-drop-weapon"
+          className="w-11 h-11 rounded-full flex flex-col items-center justify-center border-2 border-red-400/80 shadow-lg backdrop-blur-md bg-neutral-900/70 hover:bg-red-900/80 active:scale-90 cursor-pointer transition-transform group text-red-300"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            engine?.dropPlayerWeapon();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            engine?.dropPlayerWeapon();
+          }}
+          title="رمي السلاح 🗑️ (Z)"
+        >
+          <ArrowDownToLine className="w-4 h-4 text-red-400 group-hover:text-white" />
+          <span className="text-[7px] font-black text-red-300 leading-none mt-0.5">
+            رمي
+          </span>
+        </button>
+      </div>
+
+      {/* MELEE PUNCH BUTTON - FIXED DIRECTLY ABOVE RIGHT JOYSTICK */}
+      <div 
+        className="absolute pointer-events-auto z-50"
+        style={{ bottom: '155px', right: '55px' }}
       >
         <button
           id="btn-melee"
           className={`w-11 h-11 rounded-full flex items-center justify-center border-2 border-white/80 shadow-lg backdrop-blur-md transition-transform active:scale-90 cursor-pointer ${
-            meleePressed ? 'bg-amber-600/80 scale-95' : 'bg-neutral-900/60 hover:bg-neutral-900/80'
+            meleePressed ? 'bg-amber-600/80 scale-95' : 'bg-neutral-900/70 hover:bg-neutral-900/90'
           }`}
           onTouchStart={(e) => {
             e.preventDefault();
@@ -610,19 +535,17 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         </button>
       </div>
 
-      {/* DEDICATED SHOOT / FIRE BUTTON (زر الضرب المنفصل للطلق اليدوي أو الإضافي) */}
+      {/* DEDICATED SHOOT / FIRE BUTTON - FIXED DIRECTLY ABOVE MELEE BUTTON */}
       <div 
         className="absolute pointer-events-auto z-50"
-        style={{ bottom: `${controlLayout.shootBtn.bottom}px`, right: `${controlLayout.shootBtn.right}px` }}
+        style={{ bottom: '215px', right: '55px' }}
       >
         <button
           id="btn-shoot-manual"
-          className={`w-14 h-14 rounded-full border-2 flex flex-col items-center justify-center shadow-lg backdrop-blur-md transition-transform active:scale-90 cursor-pointer ${
+          className={`w-12 h-12 rounded-full border-2 flex flex-col items-center justify-center shadow-lg backdrop-blur-md transition-transform active:scale-90 cursor-pointer ${
             shootPressed
               ? 'bg-rose-600 border-white scale-95 shadow-rose-600/50'
-              : autoFire
-              ? 'bg-red-600/40 border-red-300/30 text-white hover:bg-red-600/70'
-              : 'bg-rose-600 border-amber-300 text-white animate-pulse hover:bg-rose-500'
+              : 'bg-neutral-900/70 border-white/80 text-white hover:bg-neutral-900/90'
           }`}
           onTouchStart={(e) => {
             e.preventDefault();
@@ -649,14 +572,12 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           }}
           title="زر إطلاق النار المنفصل 🔫"
         >
-          <Flame className="w-6 h-6 text-white fill-current" />
-          <span className="text-[8px] font-black text-white uppercase tracking-tighter">
+          <Flame className="w-5 h-5 text-white fill-current" />
+          <span className="text-[7px] font-black text-white uppercase tracking-tighter">
             إطلاق
           </span>
         </button>
       </div>
-
-      {/* UTILITY FLOATING BUTTONS REMOVED TO MATCH ORIGINAL SCREENSHOT CLEANLINESS */}
     </div>
   );
-};
+});

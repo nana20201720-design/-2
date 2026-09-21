@@ -18,6 +18,159 @@ export function drawWeaponSprite2D(
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
+  // Dynamic color palette for professional PUBG-style weapon skins
+  let camoGreen = '#365314';
+  let gunMetal = '#1e293b';
+  let silverChrome = '#e2e8f0';
+  let woodBrown = '#92400e';
+  let darkWood = '#78350f';
+  let orangeBakelite = '#d97706';
+  let bulletYellow = '#fbbf24';
+  let scopeBody = '#0f172a';
+  let scopeGlint = '#38bdf8';
+  let sniperBody = '#15803d';
+  let sniperStock = '#166534';
+  let uziBlue = '#475569';
+  let sliderHighlight = '#ffffff';
+  let lowerFrame = '#334155';
+  let uziGrip = '#d97706';
+
+  if (skinId) {
+    if (skinId === 'glacier') {
+      camoGreen = '#0ea5e9';
+      gunMetal = '#38bdf8';
+      silverChrome = '#e0f2fe';
+      woodBrown = '#0284c7';
+      darkWood = '#0369a1';
+      orangeBakelite = '#7dd3fc';
+      bulletYellow = '#e0f2fe';
+      scopeBody = '#0284c7';
+      scopeGlint = '#ffffff';
+      sniperBody = '#bae6fd';
+      sniperStock = '#0284c7';
+      uziBlue = '#0284c7';
+      sliderHighlight = '#f0f9ff';
+      lowerFrame = '#0284c7';
+      uziGrip = '#0ea5e9';
+      ctx.shadowColor = 'rgba(56, 189, 248, 0.85)';
+      ctx.shadowBlur = 8;
+    } else if (skinId === 'pharaoh') {
+      camoGreen = '#d97706';
+      gunMetal = '#ca8a04';
+      silverChrome = '#fbbf24';
+      woodBrown = '#1e3a8a';
+      darkWood = '#172554';
+      orangeBakelite = '#eab308';
+      bulletYellow = '#fbbf24';
+      scopeBody = '#ca8a04';
+      scopeGlint = '#eab308';
+      sniperBody = '#ca8a04';
+      sniperStock = '#1e3a8a';
+      uziBlue = '#fbbf24';
+      sliderHighlight = '#fef08a';
+      lowerFrame = '#ca8a04';
+      uziGrip = '#1e3a8a';
+      ctx.shadowColor = 'rgba(251, 191, 36, 0.85)';
+      ctx.shadowBlur = 8;
+    } else if (skinId === 'hellfire') {
+      camoGreen = '#7f1d1d';
+      gunMetal = '#111827';
+      silverChrome = '#991b1b';
+      woodBrown = '#451a03';
+      darkWood = '#311005';
+      orangeBakelite = '#dc2626';
+      bulletYellow = '#ef4444';
+      scopeBody = '#18181b';
+      scopeGlint = '#f87171';
+      sniperBody = '#7f1d1d';
+      sniperStock = '#450a0a';
+      uziBlue = '#450a0a';
+      sliderHighlight = '#ef4444';
+      lowerFrame = '#18181b';
+      uziGrip = '#dc2626';
+      ctx.shadowColor = 'rgba(220, 38, 38, 0.9)';
+      ctx.shadowBlur = 8;
+    } else if (skinId === 'pumpkin') {
+      camoGreen = '#7c2d12';
+      gunMetal = '#111827';
+      silverChrome = '#ea580c';
+      woodBrown = '#451a03';
+      darkWood = '#311005';
+      orangeBakelite = '#f97316';
+      bulletYellow = '#fb923c';
+      scopeBody = '#18181b';
+      scopeGlint = '#fdba74';
+      sniperBody = '#c2410c';
+      sniperStock = '#7c2d12';
+      uziBlue = '#7c2d12';
+      sliderHighlight = '#f97316';
+      lowerFrame = '#111827';
+      uziGrip = '#f97316';
+      ctx.shadowColor = 'rgba(249, 115, 22, 0.85)';
+      ctx.shadowBlur = 8;
+    } else if (skinId === 'cyberpunk') {
+      camoGreen = '#4a044e';
+      gunMetal = '#3b0764';
+      silverChrome = '#06b6d4';
+      woodBrown = '#ec4899';
+      darkWood = '#9d174d';
+      orangeBakelite = '#d946ef';
+      bulletYellow = '#67e8f9';
+      scopeBody = '#4a044e';
+      scopeGlint = '#22d3ee';
+      sniperBody = '#701a75';
+      sniperStock = '#4a044e';
+      uziBlue = '#06b6d4';
+      sliderHighlight = '#d946ef';
+      lowerFrame = '#3b0764';
+      uziGrip = '#ec4899';
+      ctx.shadowColor = 'rgba(6, 182, 212, 0.9)';
+      ctx.shadowBlur = 8;
+    } else if (skinId === 'gold') {
+      camoGreen = '#b45309';
+      gunMetal = '#fbbf24';
+      silverChrome = '#fef08a';
+      woodBrown = '#78350f';
+      darkWood = '#451a03';
+      orangeBakelite = '#fbbf24';
+      bulletYellow = '#ffffff';
+      scopeBody = '#b45309';
+      scopeGlint = '#facc15';
+      sniperBody = '#fbbf24';
+      sniperStock = '#78350f';
+      uziBlue = '#fbbf24';
+      sliderHighlight = '#fef08a';
+      lowerFrame = '#fbbf24';
+      uziGrip = '#78350f';
+      ctx.shadowColor = 'rgba(250, 204, 21, 0.85)';
+      ctx.shadowBlur = 8;
+    } else if (skinId === 'neon') {
+      camoGreen = '#06b6d4';
+      gunMetal = '#0f172a';
+      silverChrome = '#22d3ee';
+      ctx.shadowColor = 'rgba(6, 182, 212, 0.8)';
+      ctx.shadowBlur = 8;
+    } else if (skinId === 'inferno') {
+      camoGreen = '#991b1b';
+      gunMetal = '#180808';
+      silverChrome = '#f43f5e';
+      ctx.shadowColor = 'rgba(244, 63, 94, 0.8)';
+      ctx.shadowBlur = 8;
+    } else if (skinId === 'obsidian') {
+      camoGreen = '#1e1b4b';
+      gunMetal = '#020617';
+      silverChrome = '#38bdf8';
+      ctx.shadowColor = 'rgba(56, 189, 248, 0.7)';
+      ctx.shadowBlur = 8;
+    } else if (skinId === 'hazard') {
+      camoGreen = '#451a03';
+      gunMetal = '#1c1917';
+      silverChrome = '#eab308';
+      ctx.shadowColor = 'rgba(234, 179, 8, 0.8)';
+      ctx.shadowBlur = 8;
+    }
+  }
+
   if (weapon === 'pistol') {
     // ==========================================
     // HEAVY COMBAT MAGNUM / DESERT EAGLE (PISTOL)
@@ -123,7 +276,7 @@ export function drawWeaponSprite2D(
     // ASSAULT RIFLE / MACHINE GUN (AK-47 & M4 HYBRID)
     // ==========================================
     // 1. Wooden Fixed Stock
-    ctx.fillStyle = '#92400e';
+    ctx.fillStyle = woodBrown;
     ctx.beginPath();
     ctx.moveTo(-4, -2);
     ctx.lineTo(-14, 1);
@@ -133,22 +286,22 @@ export function drawWeaponSprite2D(
     ctx.fill();
     ctx.stroke();
     // Stock Buttplate
-    ctx.fillStyle = '#1e293b';
+    ctx.fillStyle = gunMetal;
     ctx.fillRect(-15, 0, 2, 8);
     ctx.strokeRect(-15, 0, 2, 8);
 
     // 2. Gunmetal Receiver Body
-    ctx.fillStyle = '#1e293b';
+    ctx.fillStyle = gunMetal;
     ctx.fillRect(-4, -4, 20, 7);
     ctx.strokeRect(-4, -4, 20, 7);
     // Dust cover & Bolt Handle
-    ctx.fillStyle = '#475569';
+    ctx.fillStyle = scopeBody;
     ctx.fillRect(-2, -5, 12, 2);
-    ctx.fillStyle = '#e2e8f0';
+    ctx.fillStyle = silverChrome;
     ctx.fillRect(5, -4, 3, 1.5); // silver charging handle
 
     // 3. Iconic Curved Banana Magazine (High-Contrast Orange-Bakelite or Steel)
-    ctx.fillStyle = '#d97706';
+    ctx.fillStyle = orangeBakelite;
     ctx.beginPath();
     ctx.moveTo(6, 3);
     ctx.quadraticCurveTo(11, 8, 8, 14);
@@ -158,7 +311,7 @@ export function drawWeaponSprite2D(
     ctx.fill();
     ctx.stroke();
     // Mag ribs
-    ctx.strokeStyle = '#92400e';
+    ctx.strokeStyle = woodBrown;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(4.5, 6); ctx.lineTo(7.5, 7);
@@ -167,19 +320,19 @@ export function drawWeaponSprite2D(
     ctx.lineWidth = 2.4 / scale;
 
     // 4. Wooden Lower Handguard & Gas Tube
-    ctx.fillStyle = '#92400e';
+    ctx.fillStyle = woodBrown;
     ctx.fillRect(16, -2, 13, 5);
     ctx.strokeRect(16, -2, 13, 5);
-    ctx.fillStyle = '#475569';
+    ctx.fillStyle = scopeBody;
     ctx.fillRect(16, -5, 11, 3); // upper handguard gas tube
     ctx.strokeRect(16, -5, 11, 3);
 
     // 5. Long Steel Barrel & Front Sight Post
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = scopeBody;
     ctx.fillRect(29, -3, 11, 3);
     ctx.strokeRect(29, -3, 11, 3);
     // Front triangular sight & Muzzle Slanted Compensator
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = scopeBody;
     ctx.beginPath();
     ctx.moveTo(35, -3);
     ctx.lineTo(37, -8);
@@ -190,7 +343,7 @@ export function drawWeaponSprite2D(
     ctx.fillRect(39, -4, 3, 4.5); // slanted brake
 
     // 6. Pistol Grip
-    ctx.fillStyle = '#78350f';
+    ctx.fillStyle = darkWood;
     ctx.fillRect(0, 3, 4.5, 7.5);
     ctx.strokeRect(0, 3, 4.5, 7.5);
 
@@ -199,7 +352,7 @@ export function drawWeaponSprite2D(
     // COMBAT TACTICAL PUMP SHOTGUN
     // ==========================================
     // 1. Heavy Combat Wood/Composite Stock
-    ctx.fillStyle = '#78350f';
+    ctx.fillStyle = darkWood;
     ctx.beginPath();
     ctx.moveTo(-4, -2);
     ctx.lineTo(-15, 2);
@@ -209,12 +362,12 @@ export function drawWeaponSprite2D(
     ctx.fill();
     ctx.stroke();
     // Rubber Recoil Pad
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = scopeBody;
     ctx.fillRect(-16.5, 1, 2.5, 8);
     ctx.strokeRect(-16.5, 1, 2.5, 8);
 
     // 2. High-Contrast Receiver with Red Ejection Port
-    ctx.fillStyle = '#1e293b';
+    ctx.fillStyle = gunMetal;
     ctx.fillRect(-4, -4, 18, 8);
     ctx.strokeRect(-4, -4, 18, 8);
     // Red 12-Gauge Shell Ejection Port
@@ -225,15 +378,15 @@ export function drawWeaponSprite2D(
     ctx.fillRect(2, -2.5, 2, 3); // brass rim
 
     // 3. Dual Heavy Barrels (Main Barrel + Mag Tube)
-    ctx.fillStyle = '#334155';
+    ctx.fillStyle = gunMetal;
     ctx.fillRect(14, -4, 22, 4); // main top barrel
     ctx.strokeRect(14, -4, 22, 4);
-    ctx.fillStyle = '#475569';
+    ctx.fillStyle = scopeBody;
     ctx.fillRect(14, 0, 18, 3.5); // bottom magazine tube
     ctx.strokeRect(14, 0, 18, 3.5);
 
     // 4. Ribbed Pump Forend Slider
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = scopeBody;
     ctx.fillRect(17, -1, 10, 5.5);
     ctx.strokeRect(17, -1, 10, 5.5);
     // Grip ribs
@@ -250,7 +403,7 @@ export function drawWeaponSprite2D(
     ctx.stroke();
 
     // Pistol grip
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = scopeBody;
     ctx.fillRect(0, 4, 4.5, 6);
     ctx.strokeRect(0, 4, 4.5, 6);
 
@@ -259,7 +412,7 @@ export function drawWeaponSprite2D(
     // SNIPER RIFLE (AWM / ARCTIC WARFARE MAGNUM)
     // ==========================================
     // 1. Tactical Camo-Green Thumbhole Stock
-    ctx.fillStyle = '#166534';
+    ctx.fillStyle = sniperStock;
     ctx.beginPath();
     ctx.moveTo(-6, -3);
     ctx.lineTo(-18, -1);
@@ -271,21 +424,21 @@ export function drawWeaponSprite2D(
     ctx.fill();
     ctx.stroke();
     // Cheek Rest Pad
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = scopeBody;
     ctx.fillRect(-16, -4, 7, 3);
 
     // 2. Long Military Green Chassis & Receiver
-    ctx.fillStyle = '#15803d';
+    ctx.fillStyle = sniperBody;
     ctx.fillRect(-6, -3, 30, 6);
     ctx.strokeRect(-6, -3, 30, 6);
 
     // Straight Box Magazine
-    ctx.fillStyle = '#1e293b';
+    ctx.fillStyle = gunMetal;
     ctx.fillRect(4, 3, 7, 6);
     ctx.strokeRect(4, 3, 7, 6);
 
     // 3. High-Power Tactical Scope with Cyan Glint
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = scopeBody;
     // Scope tube
     ctx.fillRect(2, -10, 22, 5);
     ctx.strokeRect(2, -10, 22, 5);
@@ -298,17 +451,17 @@ export function drawWeaponSprite2D(
     ctx.fillRect(6, -5, 2.5, 2.5);
     ctx.fillRect(17, -5, 2.5, 2.5);
     // Bright Optical Cyan Glint
-    ctx.fillStyle = '#38bdf8';
+    ctx.fillStyle = scopeGlint;
     ctx.fillRect(24, -10, 1.8, 5);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(24, -9.5, 1.2, 2);
 
     // 4. Heavy Fluted Free-Floating Barrel & Massive Muzzle Brake
-    ctx.fillStyle = '#334155';
+    ctx.fillStyle = gunMetal;
     ctx.fillRect(24, -2, 24, 3.5);
     ctx.strokeRect(24, -2, 24, 3.5);
     // Heavy Ported Muzzle Brake
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = scopeBody;
     ctx.fillRect(46, -4.5, 6, 8);
     ctx.strokeRect(46, -4.5, 6, 8);
     ctx.fillStyle = '#ffffff';

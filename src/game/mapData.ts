@@ -12,11 +12,18 @@ export interface GuideMarker {
   color: string;
 }
 
+export type MapTheme = 'outpost' | 'catacombs' | 'citadel' | 'desert' | 'cyber';
+
 export interface MapData {
+  id?: string;
   width: number;
   height: number;
   name: string;
   nameAr: string;
+  theme?: MapTheme;
+  descriptionAr?: string;
+  terrainTypeAr?: string;
+  accentColor?: string;
   platforms: Platform[];
   pickups: Pickup[];
   barrels: ExplosiveBarrel[];
@@ -25,23 +32,28 @@ export interface MapData {
   playerSpawns: { x: number; y: number; team: 'blue' | 'red' | 'ffa' }[];
   botSpawns: { x: number; y: number; team: 'blue' | 'red' | 'ffa' }[];
   scenery: {
-    trees: { x: number; y: number; scale: number; type: number }[];
-    bushes: { x: number; y: number; width: number; height: number }[];
+    trees?: { x: number; y: number; scale: number; type: number }[];
+    bushes?: { x: number; y: number; width: number; height: number }[];
     leftBunker?: { x: number; y: number; width: number; height: number };
     rightOutpost?: { x: number; y: number; width: number; height: number };
     woodPiles?: { x: number; y: number }[];
-    lamps: { x: number; y: number; color: string }[];
-    signs: { x: number; y: number; text: string }[];
+    lamps?: { x: number; y: number; color: string }[];
+    signs?: { x: number; y: number; text: string }[];
     chains?: { x: number; y1: number; y2: number }[];
     guideMarkers?: GuideMarker[];
   };
 }
 
 export const ARENA_MAP: MapData = {
+  id: 'outpost',
   width: MAP_WIDTH,
   height: MAP_HEIGHT,
   name: 'Outpost',
   nameAr: 'أوتبوست الكلاسيكية',
+  theme: 'outpost',
+  descriptionAr: 'حلبة المعارك الكلاسيكية الأيقونية مع التلال العشبية، الدشمة الخرسانية، الصخرة المعلقة، وسراديب الأنفاق.',
+  terrainTypeAr: 'تلال خضراء، صخرة معلقة، وأنفاق سراديب',
+  accentColor: '#10b981',
   platforms: [
     // World Boundaries
     { x: -100, y: 0, width: 100, height: MAP_HEIGHT, type: 'rock' },
